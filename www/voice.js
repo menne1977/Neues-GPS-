@@ -113,6 +113,9 @@
     // --- Abfragen ---
     if (/(wie schnell darf|welches (tempo)?limit|tempolimit|geschwindigkeitsbegrenzung|was ist erlaubt|erlaubt|limit)\b/.test(s) && !/(setz|stell|größer|kleiner|ansag|warn)/.test(s)) return { act: 'ask', what: 'limit' };
     if (/wie schnell (fahre|bin) ich|mein tempo|aktuelles tempo|geschwindigkeit$/.test(s)) return { act: 'ask', what: 'speed' };
+    if (/höhe.*(nap|n a p|amsterdam)/.test(s)) return { act: 'altref', id: 'nap' };
+    if (/höhe.*(ellipsoid|achse|wgs|gps ?höhe)/.test(s)) return { act: 'altref', id: 'ell' };
+    if (/höhe.*(normal ?null|n n\b|nn\b|meer)/.test(s)) return { act: 'altref', id: 'nn' };
     if (/wie (hoch|viele höhenmeter)|welche höhe/.test(s)) return { act: 'ask', what: 'alt' };
     if (/wie sp[äa]t|uhrzeit|wie viel uhr/.test(s)) return { act: 'ask', what: 'clock' };
     if (/welche richtung|wohin fahre ich|kompass$/.test(s)) return { act: 'ask', what: 'dir' };
@@ -206,7 +209,7 @@
   }
 
   const HELP = [
-    'Wie schnell darf ich fahren?', 'Wie schnell fahre ich?', 'Zeige Höhe', 'Verstecke Beschleunigung', 'Nur Tempo', 'Alle Werte',
+    'Wie schnell darf ich fahren?', 'Wie schnell fahre ich?', 'Zeige Höhe', 'Höhe über NAP', 'Höhe über Normalnull', 'Höhe Ellipsoid', 'Verstecke Beschleunigung', 'Nur Tempo', 'Alle Werte',
     'Thema Nacht / Tag / Neon / Rot', 'Akzentfarbe Orange', 'Querformat / Hochformat / Automatisch drehen',
     'Spalten drei', 'Schrift größer', 'Kacheln kleiner', 'Fahrzeug Motorrad / Auto / Gespann / Lkw',
     'Toleranz fünf', 'Warnton an / aus', 'Limit ansagen an / aus', 'Meilen / Kilometer pro Stunde',

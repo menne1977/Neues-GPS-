@@ -24,7 +24,7 @@
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
     ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '',
-    veh: 'auto', tiles: DEFTILES.slice(), obd: { type: 'bt', addr: '', host: '192.168.0.10', port: 35000 },
+    veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(), obd: { type: 'bt', addr: '', host: '192.168.0.10', port: 35000 },
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
   let S = load();
@@ -118,8 +118,11 @@
     if (c.accuracy < 50 && v < 330) { if (v > S.day.max) S.day.max = v; if (v > S.trip.max) S.trip.max = v; }
     R.speed = v; R.acc = c.accuracy;
     if (c.heading != null && !isNaN(c.heading) && v > 4) { R.heading = c.heading; R.headT = Date.now(); }
-    if (c.altitude != null && !isNaN(c.altitude)) {
-      R.alt = c.altitude; R.altAcc = c.altitudeAccuracy;
+    if (c.msl != null || c.ell != null) { R.altMsl = c.msl; R.altEll = c.ell; R.altApprox = false; }
+    else if (c.altitude != null && !isNaN(c.altitude)) { R.altMsl = c.altitude; R.altEll = null; R.altApprox = false; }
+    const av = altVals(); R.alt = av.sel;
+    if (R.alt != null) {
+      R.altAcc = c.altitudeAccuracy;
       if (S.day.altMin == null || R.alt < S.day.altMin) S.day.altMin = R.alt;
       if (S.day.altMax == null || R.alt > S.day.altMax) S.day.altMax = R.alt;
       if (lp) {
@@ -136,8 +139,27 @@
     heroTarget = v * fu();
     render(); save(); fetchStuff();
   }
+  // Höhe in drei Bezügen: NN (Normalhöhennull, wie Landkarten), NAP (Amsterdamer Pegel) und Ellipsoid (rohe GPS-Höhe, WGS84)
+  function altVals() {
+    const nn = R.altMsl != null ? R.altMsl : null, ell = R.altEll != null ? R.altEll : null;
+    const nap = nn != null ? nn - (S.napOff || 0) : null;
+    return { nn, nap, ell, sel: S.altRef === 'nap' ? nap : S.altRef === 'ell' ? ell : nn };
+  }
+  const ALTN = { nn: 'NN', nap: 'NAP', ell: 'Ellipsoid' };
   function onErr(e) { R.fixT = 0; setChip('#cGps', 'bad', e && e.code === 1 ? 'GPS: Standort nicht erlaubt' : 'GPS: kein Signal'); }
-  if (navigator.geolocation) navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  let webWatch = null, nativeFix = false;
+  if (navigator.geolocation) webWatch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  if (Gnss && Gnss.startFix) {
+    Gnss.addListener('fix', (f) => {
+      if (!nativeFix) { nativeFix = true; if (webWatch != null) { navigator.geolocation.clearWatch(webWatch); webWatch = null; } }
+      onPos({ timestamp: f.t || Date.now(), coords: { latitude: f.lat, longitude: f.lon, accuracy: f.acc, speed: f.speed >= 0 ? f.speed : null, heading: f.bearing >= 0 ? f.bearing : null, altitude: f.alt, altitudeAccuracy: null, msl: f.msl, ell: f.ell } });
+    });
+    Gnss.startFix().catch(() => {});
+  }
+  if (Gnss && Gnss.startCompass) {
+    Gnss.addListener('compass', (c) => { R.compass = c.h; R.compassT = performance.now(); });
+    Gnss.startCompass().catch(() => {});
+  }
 
   addEventListener('devicemotion', (e) => {
     const a = e.acceleration; if (!a || a.x == null) return;
@@ -153,7 +175,8 @@
     if (h != null) R.compass = h;
   }
   addEventListener('deviceorientationabsolute', (e) => ori(e, true)); addEventListener('deviceorientation', (e) => ori(e, false));
-  const headingNow = () => (R.heading != null && Date.now() - R.headT < 8000) ? R.heading : R.compass;
+  const headingRaw = () => (R.heading != null && Date.now() - R.headT < 8000 && R.speed > 4) ? R.heading : (R.compass != null ? R.compass : (R.heading != null && Date.now() - R.headT < 8000 ? R.heading : null));
+  const headingNow = () => R.hd != null ? R.hd : headingRaw();
 
   // ---------- Tempolimit ----------
   function updateLimit() {
@@ -254,6 +277,9 @@
     if (Math.abs(diff) > 0.02) { heroShown += diff * Math.min(1, dt * 7); if (Math.abs(heroTarget - heroShown) < 0.05) heroShown = heroTarget; }
     const txt = S.decimals ? fmt(heroShown, 1) : String(Math.round(heroShown));
     const el = $('#speed'); if (el.textContent !== txt) el.textContent = txt;
+    const hr = headingRaw();
+    if (hr != null) { if (R.hd == null) R.hd = hr; else { let d = ((hr - R.hd + 540) % 360) - 180; if (Math.abs(d) > 0.2) R.hd = (R.hd + d * Math.min(1, dt * 12) + 360) % 360; } }
+    if (t - (R.tileT || 0) > 120 && S.tiles.includes('dir')) { R.tileT = t; renderTiles(); }
     if (cur) cur.m.update(designApi());
     requestAnimationFrame(heroLoop);
   }
@@ -328,7 +354,7 @@
   function tileData(id) {
     const o = OBD.vals || {}, ob = (k, d, u) => ({ v: o[k] != null ? fmt(o[k], d) : '–', u, dim: o[k] == null && !OBD.on });
     switch (id) {
-      case 'alt': return { v: fmt(R.alt), u: 'm', s: S.day.altMin != null ? `↓ ${fmt(S.day.altMin)}  ↑ ${fmt(S.day.altMax)} m` : '', dim: R.alt == null };
+      case 'alt': { const av = altVals(); const o = ['nn', 'nap', 'ell'].filter((k) => k !== S.altRef && av[k] != null).map((k) => ALTN[k] + ' ' + fmt(av[k])).join(' · '); return { v: fmt(av.sel), u: 'm ' + ALTN[S.altRef], s: o, dim: av.sel == null }; }
       case 'dir': { const h = headingNow(); return { v: dirName(h), u: h != null ? Math.round(h) + '°' : '', arrow: h, dim: h == null }; }
       case 'acc': { const a = R.accel; return { v: (a > 0 ? '+' : '') + fmt(a, 1), u: 'm/s²', s: a > 0.8 ? 'beschleunigt' : a < -0.8 ? 'bremst' : 'gleichmäßig' }; }
       case 'g': return { v: R.g != null ? fmt(R.g, 2) : '–', u: 'g', s: R.g != null ? 'Spitze ' + fmt(R.gPeak, 2) : 'kein Sensor', dim: R.g == null };
@@ -384,6 +410,9 @@
       case 'free': { const l = limitKmh(); return l == null ? none : { n: (l - R.speed) * f }; }
       case 'rpm': case 'cool': case 'oil': case 'thr': case 'load': case 'volt': case 'fuel': case 'l100': return num(o[src]);
       case 'alt': return num(R.alt);
+      case 'altnn': return num(altVals().nn);
+      case 'altnap': return num(altVals().nap);
+      case 'altell': return num(altVals().ell);
       case 'dir': return num(headingNow());
       case 'dirname': return { n: null, t: dirName(headingNow()) };
       case 'acc': return num(R.accel);
@@ -556,7 +585,7 @@
         return s;
       }
       case 'speed': return 'Du fährst ' + Math.round(R.speed * fu()) + ' ' + (S.unit === 'mph' ? 'Meilen pro Stunde' : 'Kilometer pro Stunde') + '.';
-      case 'alt': return R.alt == null ? 'Die Höhe ist noch nicht bekannt.' : 'Du bist auf ' + Math.round(R.alt) + ' Metern.';
+      case 'alt': { const av = altVals(); return av.sel == null ? 'Die Höhe ist noch nicht bekannt.' : 'Du bist auf ' + Math.round(av.sel) + ' Metern über ' + (S.altRef === 'nap' ? 'N A P' : S.altRef === 'ell' ? 'dem Ellipsoid' : 'Normalnull') + '.'; }
       case 'clock': { const d = new Date(); return 'Es ist ' + d.getHours() + ' Uhr ' + String(d.getMinutes()).padStart(2, '0') + '.'; }
       case 'dir': { const h = headingNow(); return h == null ? 'Die Richtung ist noch nicht bekannt.' : 'Du fährst Richtung ' + dirLong(h) + '.'; }
       case 'wx': return R.wx ? `Draußen sind es ${Math.round(R.wx.temperature_2m)} Grad, ${WX[R.wx.weather_code] || ''}.` : 'Das Wetter ist noch nicht geladen.';
@@ -589,6 +618,7 @@
       case 'size': if (a.what === 'hero') S.hero = clamp(+(S.hero + a.delta).toFixed(2), 0.6, 1.6); else S.tsize = clamp(+(S.tsize + a.delta).toFixed(2), 0.6, 1.8); msg = a.delta > 0 ? 'Größer.' : 'Kleiner.'; break;
       case 'theme': S.theme = a.id; msg = 'Thema ' + a.id + '.'; break;
       case 'accent': S.accent = a.color; msg = 'Akzentfarbe ' + a.name + '.'; break;
+      case 'altref': S.altRef = a.id; S.day.altMin = S.day.altMax = null; msg = 'Höhe über ' + (a.id === 'nap' ? 'Amsterdamer Null' : a.id === 'ell' ? 'dem Ellipsoid' : 'Normalnull') + '.'; break;
       case 'unit': S.unit = a.id; heroTarget = R.speed * fu(); msg = a.id === 'mph' ? 'Meilen pro Stunde.' : 'Kilometer pro Stunde.'; break;
       case 'tol': S.tol = a.n; msg = a.n ? 'Toleranz ' + a.n + ' Kilometer pro Stunde.' : 'Keine Toleranz.'; break;
       case 'volume': S.vol = a.n != null ? a.n : clamp(S.vol + a.delta, 10, 100); msg = 'Lautstärke ' + S.vol + ' Prozent.'; break;
@@ -640,19 +670,21 @@
   function openSheet(sec) { $('#sheet').hidden = false; buildPanel(sec); }
   function closeSheet() { $('#sheet').hidden = true; }
   $('#gear').onclick = () => openSheet();
+  $('#panel').addEventListener('toggle', (e) => { const d = e.target; if (d.tagName !== 'DETAILS' || !d.open) return; const b = d.querySelector('.sbody'); if (b && !b.firstChild && secFns[d.id]) b.innerHTML = secFns[d.id](); }, true);
   $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
 
   const chk = (k, label, hint) => `<div class="row"><label>${label}${hint ? `<small>${hint}</small>` : ''}</label><input type="checkbox" data-k="${k}" ${S[k] ? 'checked' : ''}></div>`;
   const sel = (k, label, opts) => `<div class="row"><label>${label}</label><select data-k="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(S[k]) === String(v) ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
   let obdDevices = [];
+  const secFns = {};
   function buildPanel(open) {
     const keep = $('#panel').scrollTop;
     const openIds = open ? [open] : [...document.querySelectorAll('#panel details[open]')].map((d) => d.id);
-    const det = (id, title, body) => `<details id="${id}" ${openIds.includes(id) ? 'open' : ''}><summary>${title}</summary>${body}</details>`;
+    const det = (id, title, body) => { secFns[id] = body; return `<details id="${id}" ${openIds.includes(id) ? 'open' : ''}><summary>${title}</summary><div class="sbody">${openIds.includes(id) ? body() : ''}</div></details>`; };
     const vis = TILES.map(([id, name]) => ({ id, name, on: S.tiles.includes(id) }));
     const order = S.tiles.map((id) => vis.find((v) => v.id === id)).concat(vis.filter((v) => !v.on));
     let h = `<h2>Einstellungen <button class="btn" data-do="close">✕</button></h2>`;
-    h += det('look', 'Anzeige', `
+    h += det('look', 'Anzeige', () => `
       ${sel('theme', 'Thema', [['nacht', 'Nacht'], ['schwarz', 'Schwarz (OLED)'], ['tag', 'Tag (hell)'], ['neon', 'Neon'], ['rot', 'Rot (Nachtsicht)'], ['blau', 'Blau']])}
       <div class="row"><label>Akzentfarbe</label><span>${Object.entries({ grün: '#3ddc97', blau: '#4aa3ff', orange: '#ff9f2e', rot: '#ff4d4d', gelb: '#ffd84f', pink: '#ff5fd2', türkis: '#2ee6d6', weiß: '#f2f5f8' }).map(([n, c]) => `<span class="sw" data-accent="${c}" style="background:${c};${S.accent === c ? 'border-color:#fff' : ''}" title="${n}"></span>`).join('')}</span></div>
       ${sel('layout', 'Ausrichtung', [['auto', 'Automatisch drehen'], ['land', 'Immer quer'], ['port', 'Immer hochkant']])}
@@ -663,34 +695,34 @@
       ${sel('colsP', 'Spalten hochkant', [1, 2, 3, 4].map((n) => [n, n]))}
       ${sel('colsL', 'Spalten quer', [1, 2, 3, 4, 5].map((n) => [n, n]))}
       ${chk('awake', 'Bildschirm anlassen')}`);
-    h += det('tilesec', 'Werte (Kacheln)', `<div class="info">Häkchen = sichtbar. Pfeile verschieben. Oder per Sprache: „Zeige Höhe“, „Verstecke Trip“.</div>` +
+    h += det('tilesec', 'Werte (Kacheln)', () => `<div class="info">Häkchen = sichtbar. Pfeile verschieben. Oder per Sprache: „Zeige Höhe“, „Verstecke Trip“.</div>` +
       order.map((v) => `<div class="tl"><label><input type="checkbox" data-tile="${v.id}" ${v.on ? 'checked' : ''}> ${v.name}</label>${v.on ? `<button class="mv" data-mv="${v.id}" data-d="-1">↑</button><button class="mv" data-mv="${v.id}" data-d="1">↓</button>` : ''}</div>`).join(''));
-    h += det('lim', 'Tempolimit', `
+    h += det('lim', 'Tempolimit', () => `
       ${sel('veh', 'Fahrzeug', Object.entries(L.VEHICLES).map(([k, v]) => [k, v.name]))}
       <div class="row"><label>Toleranz (km/h)<small>bis hierhin nur gelbe Warnung</small></label><input type="number" min="0" max="30" data-k="tol" value="${S.tol}" style="width:80px"></div>
       ${chk('beep', 'Warnton bei zu schnell')}${chk('warnSpeak', 'Warnung zusätzlich ansagen')}${chk('announce', 'Neues Limit ansagen')}${chk('preview', 'Nächstes Limit voraus zeigen')}
       <div class="info">Das Limit kommt aus OpenStreetMap, passend zur Fahrtrichtung und Uhrzeit. Ein gestrichelter Rand mit ~ heißt: kein Schild erfasst, es ist ein Richtwert (50 innerorts, 100 außerorts). Das echte Schild gilt immer.</div>`);
-    h += det('voice', 'Sprache', `
+    h += det('voice', 'Sprache', () => `
       ${chk('wake', 'Aktivierungswort immer bereit', 'Mikrofon-Knopf lange drücken schaltet auch um')}
       <div class="row"><label>Aktivierungswort</label><input type="text" id="wakeWord" value="${S.wakeWord}" style="width:140px"></div>
       ${chk('replies', 'Antworten sprechen')}
       <div class="row"><label>Lautstärke</label><input type="range" min="10" max="100" step="5" value="${S.vol}" data-k="vol"></div>
       ${chk('bt', 'Bluetooth-Headset als Mikrofon')}
       <div class="info">Tippe auf 🎙 und sprich, oder sage das Aktivierungswort. Die Erkennung braucht Internet und das deutsche Sprachpaket der Google-App.</div>`);
-    h += det('data', 'Daten und Sensoren', `
+    h += det('data', 'Daten und Sensoren', () => `
       ${chk('online', 'Online gehen', 'Straßen, Limit, Wetter. Aus = nur GPS und Sensoren')}
       ${chk('wxOn', 'Wetter laden')}${chk('satOn', 'GPS-Satelliten lesen')}`);
-    h += det('obd', 'OBD2-Adapter (nur Werte lesen)', `
+    h += det('obd', 'OBD2-Adapter (nur Werte lesen)', () => `
       <div class="info">Adapter vorher in Android koppeln. Es werden nur Echtzeitwerte gelesen, nichts am Auto geändert.</div>
       ${sel('obdType', 'Verbindung', [['bt', 'Bluetooth'], ['wifi', 'WLAN']]).replace('data-k="obdType"', 'data-ok="type"').replace(/ selected/g, (m) => m)}
       <div class="row"><label>Adapter</label><select data-ok="addr">${[['', 'bitte suchen']].concat(obdDevices.map((d) => [d.address, d.name || d.address])).concat(S.obd.addr && !obdDevices.some((d) => d.address === S.obd.addr) ? [[S.obd.addr, S.obd.addr]] : []).map(([v, t]) => `<option value="${v}" ${S.obd.addr === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <button class="act" data-do="obdscan">Adapter suchen</button>
       <button class="act pri" data-do="obdgo">${OBD.on ? 'Trennen' : 'Verbinden'}</button>
       <div class="info">${OBD.on ? 'Verbunden.' : (OBD.err ? 'Fehler: ' + OBD.err : 'Nicht verbunden.')} Danach OBD-Werte unter „Werte“ einblenden.</div>`);
-    h += det('cmd', 'Sprachbefehle und Test', `
+    h += det('cmd', 'Sprachbefehle und Test', () => `
       <div class="row"><input type="text" id="cmdIn" placeholder="Befehl eintippen, z. B. Thema Neon" style="max-width:none;width:100%"><button class="btn" data-do="cmdgo">▶</button></div>
       <ul class="cmd">${Cmd.HELP.map((x) => `<li>${x}</li>`).join('')}</ul>`);
-    h += det('designs', 'Tacho-Designs (eigene Tachos)', `
+    h += det('designs', 'Tacho-Designs (eigene Tachos)', () => `
       ${sel('dLand', 'Tacho quer', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       ${sel('dPort', 'Tacho hochkant', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       <button class="act pri" data-do="dnew">Eigenen Tacho erstellen</button>
@@ -701,7 +733,7 @@
       <button class="act" data-do="dserver">Designs vom Server holen</button>
       ${designList.map((d) => `<div class="tl"><label>${Design.esc(d.name)}</label><button class="mv" style="width:auto;padding:0 8px" data-do="dedit" data-n="${Design.esc(d.name)}">Bearbeiten</button><button class="mv" style="width:auto;padding:0 8px" data-do="dexp" data-n="${Design.esc(d.name)}">Export</button><button class="mv" data-do="ddel" data-n="${Design.esc(d.name)}">✕</button></div>`).join('')}
       <div class="info">Ein Design ist eine Datei. Du kannst sie laden, ohne die App neu zu bauen. Schicke mir Bilder mit Beschriftung, ich mache daraus Dateien, oder baue selbst im Creator.</div>`);
-    h += det('apps', 'Apps, Split-Bildschirm, Navigation', `
+    h += det('apps', 'Apps, Split-Bildschirm, Navigation', () => `
       ${chk('appCtl', 'Andere Apps per Sprache bedienen', 'öffnen, schließen, zurück, tippen, scrollen, schreiben')}
       <button class="act" data-do="accopen">Bedienungshilfe prüfen und öffnen</button>
       <div class="row"><label>App für den geteilten Bildschirm<small>${S.splitApp.label ? Design.esc(S.splitApp.label) : 'noch keine gewählt'}</small></label><button class="mv" style="width:auto;padding:0 10px" data-do="appsload">Wählen</button></div>
@@ -709,7 +741,11 @@
       ${sel('navi', 'Navigation für Tankstellen', [['google', 'Google Maps'], ['sygic', 'Sygic'], ['geo', 'Andere Karten-App'], ['ask', 'Jedes Mal fragen']])}
       <div class="row"><label>Tankstellen-Umkreis (km)</label><input type="number" min="1" max="100" data-k="fuelKm" value="${S.fuelKm}" style="width:80px"></div>
       <div class="info">Geteilter Bildschirm: Knopf ◫ oben oder „Split mit Navigation“. Mit eingeschalteter Bedienungshilfe teilt die App den Bildschirm selbst, sonst öffnet sie die Wunsch-App daneben.</div>`);
-    h += det('reset', 'Zähler', `
+    h += det('altsec', 'Höhe', () => `
+      ${sel('altRef', 'Höhe anzeigen über', [['nn', 'Normalnull (NN, wie auf Karten)'], ['nap', 'Amsterdamer Null (NAP)'], ['ell', 'Ellipsoid (rohe GPS-Höhe, WGS84)']])}
+      <div class="row"><label>NAP-Unterschied (m)<small>NAP = NN minus dieser Wert, normal 0</small></label><input type="number" step="0.01" data-k="napOff" value="${S.napOff}" style="width:80px"></div>
+      <div class="info">NN ist die Höhe über dem Meer wie in Deutschland üblich. NAP ist der Bezug aus Amsterdam, fast gleich. Das Ellipsoid ist die Höhe über dem Rechenmodell der Erde, sie liegt bei uns rund 45 m höher. Per Sprache: „Höhe über NAP“, „Höhe über Normalnull“, „Höhe Ellipsoid“.</div>`);
+    h += det('reset', 'Zähler', () => `
       <div class="row"><label>Gesamtkilometer<small>Zähler setzen, z. B. auf den Tachostand</small></label><input type="number" id="totalIn" value="${Math.round(S.total)}" style="width:110px"></div>
       <button class="act" data-do="rday">Tageskilometer auf null</button><button class="act" data-do="rtrip">Trip auf null</button><button class="act" data-do="rmax">Höchsttempo zurücksetzen</button><button class="act" data-do="rall">Alle Einstellungen zurücksetzen</button>`);
     h += `<div class="info">Quellen: OpenStreetMap-Mitwirkende (ODbL) für Straßen und Limits, Open-Meteo für Wetter.</div>`;

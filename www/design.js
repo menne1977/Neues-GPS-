@@ -6,7 +6,7 @@
 
   const SRC = [
     ['speed', 'Tempo (aktuelle Einheit)'], ['kmh', 'Tempo in km/h (fest)'], ['limit', 'Tempolimit'], ['free', 'Spielraum zum Limit'],
-    ['rpm', 'Drehzahl (OBD)'], ['alt', 'Höhe'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
+    ['rpm', 'Drehzahl (OBD)'], ['alt', 'Höhe'], ['altnn', 'Höhe über Normalnull'], ['altnap', 'Höhe über Amsterdamer Null'], ['altell', 'Höhe über Ellipsoid'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
     ['max', 'Höchsttempo heute'], ['avg', 'Durchschnitt Trip'], ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip-Kilometer'], ['total', 'Gesamtkilometer'],
     ['clock', 'Uhrzeit'], ['date', 'Datum'], ['gps', 'GPS-Genauigkeit'], ['sat', 'Satelliten'], ['temp', 'Außentemperatur'], ['gust', 'Böen'], ['grade', 'Steigung'],
     ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'], ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
