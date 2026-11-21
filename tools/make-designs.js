@@ -116,3 +116,63 @@ const out = (d) => {
   d.els.push(el('value', { x: 2, y: 1.5, w: 17, h: 9, src: 'clock', size: 6, weight: 800, font: 'condensed', align: 'l', color: '#9fb4e0' }));
   out(d);
 })();
+
+// 5) Fahr-Tacho Voll: Vorlage nach Kundenbild, volle Breite quer (Kopfzeile, drei Spalten)
+(() => {
+  const d = D.blank('Fahr-Tacho Voll'); d.aspect = 2.1667; d.bg.color = '#070c14';
+  const svg = (b) => 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>');
+  const ICON = {
+    bat: svg('<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4M10 10v4"/>'),
+    alt: svg('<path d="M2 20l7-12 4 7 3-4 6 9z" fill="#38bdf8"/>'),
+    clk: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    sat: svg('<path d="M4 14l6 6M9 9l6 6M13 5l6 6M3 21l4-4M8 5l3-3 4 4-3 3zM14 12l3-3 4 4-3 3z"/>')
+  };
+  const col = [['#101826', '#1d2b44'], ['#0e1522', '#1d2b44']];
+  const tile = (x, y, w, h, lab, src, unit, o) => {
+    o = o || {};
+    d.els.push(el('rect', { x, y, w, h, color: o.fill || '#101826', radius: 8, border: o.bw || 0.6, borderColor: o.line || '#1d2b44' }));
+    d.els.push(el('text', { x, y: y + 1, w, h: 4.8, text: lab, size: o.ls || 3.3, color: o.lc || '#aab6c9', weight: 600, align: 'c' }));
+    d.els.push(el('value', { x: x + (o.icon ? 4 : 0), y: y + (o.vy || 5.8), w: w - (o.icon ? 4 : 0), h: o.vh || 7.2, src, unit, dec: o.dec || 0, size: o.vs || 5.4, weight: 800, font: 'condensed', color: o.vc || '#ffffff', align: 'c' }));
+    if (o.icon) d.els.push(el('image', { x: x + 1.2, y: y + (o.vy || 5.8) + 0.3, w: 3.2, h: 6.5, img: ICON[o.icon], fit: 'contain' }));
+  };
+  // Kopfzeile
+  d.els.push(
+    el('rect', { x: 1.2, y: 2, w: 97.6, h: 15, color: '#0f1827', radius: 14, border: 0.8, borderColor: '#2a3a58' }),
+    el('road', { x: 2.6, y: 3.5, w: 27, h: 12, size: 6.6, color: '#ffffff', weight: 800, font: 'condensed', align: 'l' }),
+    el('sign', { x: 31, y: 3.3, w: 6.6, h: 12.6 }),
+    el('next', { x: 39, y: 3.3, w: 17, h: 12.6, size: 3.2 }),
+    el('value', { x: 56, y: 3, w: 22, h: 13.5, src: 'clock', size: 9, weight: 800, font: 'condensed', color: '#38bdf8', align: 'r' })
+  );
+  // Mitte
+  d.els.push(
+    el('rect', { x: 25.8, y: 20, w: 48.4, h: 78, color: '#0d1420', radius: 10, border: 0.6, borderColor: '#1d2b44' }),
+    el('value', { x: 27.5, y: 22, w: 14, h: 8, src: 'dirname', size: 6.2, weight: 800, color: '#38bdf8', align: 'l' }),
+    el('value', { x: 27.5, y: 30, w: 14, h: 6, src: 'dir', unit: '°', size: 4, weight: 700, color: '#38bdf8', align: 'l' }),
+    el('value', { x: 59, y: 24, w: 13.5, h: 8, src: 'temp', unit: '°C', size: 5.6, weight: 800, color: '#e8eefb', align: 'r' }),
+    el('value', { x: 28, y: 33, w: 44, h: 38, src: 'speed', size: 31, weight: 900, font: 'condensed', color: '#ffffff', align: 'c' }),
+    el('text', { x: 28, y: 69, w: 44, h: 6.5, text: 'km/h', size: 4.8, color: '#cbd5e1', weight: 600 }),
+    el('bar', { x: 28.5, y: 77.5, w: 43, h: 4.2, src: 'speed', min: 0, max: 240, color: '#22c55e', grad: '#22c55e,#facc15,#ef4444', bg: '#1a2436', radius: 50, segs: 0, stc: false, limitMark: true }),
+    el('text', { x: 28, y: 83, w: 44, h: 5, text: 'MAX Tempo', size: 3.6, color: '#ff9f5a', weight: 700 }),
+    el('value', { x: 28, y: 88, w: 44, h: 9, src: 'max', unit: ' km/h', size: 6.2, weight: 800, font: 'condensed', color: '#ff7a3d', align: 'c' })
+  );
+  // Links
+  const lx = 1.2, lw = 23;
+  d.els.push(
+    el('rect', { x: lx, y: 20, w: lw, h: 33, color: '#101826', radius: 8, border: 0.6, borderColor: '#1d2b44' }),
+    el('text', { x: lx, y: 21, w: lw, h: 5, text: 'G-Kraft', size: 3.6, color: '#cbd5e1', weight: 600 }),
+    el('arc', { x: lx + (lw - 8.4) / 2, y: 26.5, w: 8.4, h: 18.2, src: 'g', min: 0, max: 1.5, a0: -135, a1: 135, thick: 7, color: '#ef4444', bg: '#1b2638', stc: false }),
+    el('value', { x: lx, y: 45.5, w: lw, h: 6.5, src: 'g', dec: 1, unit: ' G', size: 5.2, weight: 800, font: 'condensed', color: '#ffffff' })
+  );
+  tile(lx, 55, lw, 14, 'Höhe', 'alt', ' m', { icon: 'alt', vs: 5.6 });
+  tile(lx, 71, lw, 13.5, 'Beschleunigung', 'acc', ' m/s²', { fill: '#10331f', line: '#22c55e', bw: 1, lc: '#86efac', vc: '#4ade80', dec: 1, ls: 3 });
+  tile(lx, 86.5, lw, 11.5, 'Fahrzeit', 'time', ' h', { icon: 'clk', vs: 5, vy: 5, vh: 6, ls: 3 });
+  // Rechts
+  const rx = 75, rw = 23.8;
+  const rh = 11.6, rv = { vy: 5, vh: 6, vs: 5, ls: 3 };
+  tile(rx, 20, rw, rh, 'Bordspannung', 'volt', ' V', Object.assign({ icon: 'bat', dec: 1 }, rv));
+  tile(rx, 33, rw, rh, 'Tageskilometer', 'day', ' km', Object.assign({ dec: 1, vc: '#38bdf8', lc: '#7aa7d9' }, rv));
+  tile(rx, 46, rw, rh, 'Trip-Strecke', 'trip', ' km', Object.assign({ dec: 1 }, rv));
+  tile(rx, 59, rw, rh, 'Gesamtkilometer', 'total', ' km', rv);
+  tile(rx, 72, rw, rh, 'Satelliten', 'sat', ' SAT', Object.assign({ icon: 'sat', vc: '#38bdf8' }, rv));
+  out(d);
+})();

@@ -157,7 +157,7 @@
           case 'bar': {
             const v = api.get(e.src), f = frac(v.n == null ? 0 : v.n, e.min, e.max), fill = n.querySelector('.f'), m = n.querySelector('.m');
             const horiz = e.dir === 'r' || e.dir === 'l';
-            fill.style.cssText = `position:absolute;background:${col};${horiz ? `top:0;bottom:0;${e.dir === 'r' ? 'left' : 'right'}:0;width:${f * 100}%` : `left:0;right:0;${e.dir === 'u' ? 'bottom' : 'top'}:0;height:${f * 100}%`}`;
+            fill.style.cssText = `position:absolute;background:${e.grad && horiz ? `linear-gradient(to ${e.dir === 'r' ? 'right' : 'left'},${e.grad});background-size:${f > 0.02 ? (100 / f).toFixed(1) : 5000}% 100%;background-repeat:no-repeat` : col};${horiz ? `top:0;bottom:0;${e.dir === 'r' ? 'left' : 'right'}:0;width:${f * 100}%` : `left:0;right:0;${e.dir === 'u' ? 'bottom' : 'top'}:0;height:${f * 100}%`}`;
             if (e.limitMark) { const lm = api.limitKmh; if (lm != null && (e.src === 'speed' || e.src === 'kmh')) { const lf = frac(lm * (e.src === 'speed' ? api.fu : 1), e.min, e.max) * 100; m.style.cssText = `position:absolute;background:#fff;${horiz ? `top:0;bottom:0;width:3px;${e.dir === 'r' ? 'left' : 'right'}:calc(${e.dir === 'r' ? lf : 100 - lf}% - 1px)` : `left:0;right:0;height:3px;bottom:calc(${lf}% - 1px)`}`; m.style.display = ''; } else m.style.display = 'none'; } else m.style.display = 'none';
             break;
           }
