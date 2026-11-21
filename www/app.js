@@ -235,7 +235,8 @@
     }
   }
   setInterval(() => { if (R.lat != null) fetchStuff(); }, 5000);
-  setInterval(() => { if (S.online && R.lat != null && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 30000);
+  setInterval(() => { if (S.online && R.lat != null && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 10000);
+  setTimeout(() => { if (S.online && R.lat != null) placesApi.refresh(false); }, 3000);
 
   // ---------- Anzeige ----------
   function setChip(id, cls, text) { const el = $(id); el.className = 'chip ' + cls; el.querySelector('span').textContent = text; }

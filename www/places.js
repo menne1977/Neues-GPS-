@@ -8,24 +8,33 @@
 
   const P = { fuel: [], jams: [], fuelT: 0, jamT: 0, fuelErr: '', jamErr: '', busy: {}, tab: 'fuel', api: null, open: false };
 
-  async function ov(q) {
-    const servers = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-    let last;
-    for (const u of servers) {
-      try {
-        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 14000);
-        const r = await fetch(u + '?data=' + encodeURIComponent(q), { signal: ctl.signal }); clearTimeout(to);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return await r.json();
-      } catch (e) { last = e; }
-    }
-    throw last || new Error('Overpass nicht erreichbar');
+  // Gestaffelt wie in der alten App: erster Server sofort, bei Fehler oder nach 3 s zusätzlich der nächste, der erste Treffer gewinnt.
+  // Verlässt sich nicht auf Abbrechen (in der APK kann eine Anfrage sonst ewig hängen), sondern hat eine feste Frist.
+  const OV = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+  let ovStart = 0;
+  function ov(q, hedge) {
+    const first = ovStart++ % OV.length;
+    return new Promise((resolve, reject) => {
+      let done = false, failed = 0, next = 0, last = ''; const timers = [];
+      const fin = (fn, v) => { if (done) return; done = true; timers.forEach(clearTimeout); fn(v); };
+      const go = () => {
+        if (done || next >= OV.length) return;
+        const u = OV[(first + next) % OV.length], h = new URL(u).host; next++;
+        timers.push(setTimeout(go, hedge || 3500));
+        fetch(u + '?data=' + encodeURIComponent(q)).then((r) => { if (!r.ok) throw new Error(h + ' HTTP ' + r.status); return r.json(); })
+          .then((j) => fin(resolve, j))
+          .catch((e) => { if (done) return; last = h + ' ' + ((e && e.message) || e); failed++; if (failed >= OV.length) fin(reject, new Error(last)); else go(); });
+      };
+      go();
+      timers.push(setTimeout(() => fin(reject, new Error('Zeitüberschreitung')), 25000));
+    });
   }
+  const guard = (k) => { const t = Date.now(); if (P.busy[k] && t - P.busy[k] < 40000) return false; P.busy[k] = t; return true; };
 
   const brg = (la1, lo1, la2, lo2) => { const p = L.project(la2, lo2, la1, lo1); return L.bearing(0, 0, p[0], p[1]); };
 
   async function loadFuel(lat, lon, km) {
-    if (P.busy.fuel) return; P.busy.fuel = true; P.fuelErr = '';
+    if (!guard('fuel')) return; P.fuelErr = ''; P.fuelPos = { lat, lon };
     try {
       const j = await ov(`[out:json][timeout:25];nwr(around:${Math.round(km * 1000)},${lat},${lon})["amenity"="fuel"];out center 120;`);
       P.fuel = (j.elements || []).map((e) => {
@@ -35,11 +44,11 @@
       }).filter(Boolean).sort((a, b) => a.d - b.d).slice(0, 60);
       P.fuelT = Date.now();
     } catch (e) { P.fuelErr = String((e && e.message) || e).slice(0, 80); }
-    P.busy.fuel = false; refresh();
+    P.busy.fuel = 0; refresh();
   }
 
   async function loadJams(lat, lon, heading) {
-    if (P.busy.jam) return; P.busy.jam = true; P.jamErr = '';
+    if (!guard('jam')) return; P.jamErr = ''; P.jamPos = { lat, lon };
     try {
       const j = await ov(`[out:json][timeout:25];way(around:30000,${lat},${lon})["highway"="motorway"]["ref"];out tags 80;`);
       const refs = [...new Set((j.elements || []).flatMap((e) => (e.tags.ref || '').split(';')).map((r) => r.replace(/\s+/g, '')).filter((r) => /^A\d+$/.test(r)))].slice(0, 6);
@@ -60,17 +69,30 @@
       P.jams = res.flat().sort((a, b) => (b.ahead - a.ahead) || ((a.d == null ? 999 : a.d) - (b.d == null ? 999 : b.d))).slice(0, 40);
       P.jamT = Date.now();
     } catch (e) { P.jamErr = String((e && e.message) || e).slice(0, 80); }
-    P.busy.jam = false; refresh();
+    P.busy.jam = 0; refresh();
   }
 
   // Aus der App aufgerufen (Position und Einstellungen)
   function ensure(pos, km, force) {
     if (!pos || pos.lat == null) return;
-    if (force || Date.now() - P.fuelT > 10 * 60000) loadFuel(pos.lat, pos.lon, km);
-    if (force || Date.now() - P.jamT > 5 * 60000) loadJams(pos.lat, pos.lon, pos.heading);
+    P.pos = pos;
+    const mv = (p) => p ? L.hav(p.lat, p.lon, pos.lat, pos.lon) / 1000 : 999;
+    if (force || Date.now() - P.fuelT > 5 * 60000 || mv(P.fuelPos) > 2 || P.fuelErr) loadFuel(pos.lat, pos.lon, km);
+    if (force || Date.now() - P.jamT > 3 * 60000 || mv(P.jamPos) > 6 || P.jamErr) loadJams(pos.lat, pos.lon, pos.heading);
+    live();
   }
 
+  // Abstand und Richtung laufend zur aktuellen Position neu rechnen, nicht erst beim nächsten Abruf
+  function live() {
+    const p = P.pos; if (!p) return;
+    for (const f of P.fuel) { f.d = L.hav(p.lat, p.lon, f.la, f.lo) / 1000; f.b = brg(p.lat, p.lon, f.la, f.lo); }
+    P.fuel.sort((a, b) => a.d - b.d);
+    for (const j of P.jams) if (j.la != null) { j.d = L.hav(p.lat, p.lon, j.la, j.lo) / 1000; const b = brg(p.lat, p.lon, j.la, j.lo); j.ahead = p.heading != null && j.d < 40 && L.angDiff(p.heading, b) < 55; }
+  }
+  const ago = (t) => !t ? '' : (Date.now() - t < 90000 ? 'gerade eben' : 'vor ' + Math.round((Date.now() - t) / 60000) + ' min');
+  let liveT = 0;
   function summary() {
+    if (Date.now() - liveT > 2000) { liveT = Date.now(); live(); }
     const f = P.fuel[0]; const ahead = P.jams.filter((j) => j.ahead).length;
     return { fuel: f ? { d: f.d, name: f.name } : null, jams: P.jams.length, ahead, nearest: P.jams.find((j) => j.d != null) || null };
   }
@@ -92,18 +114,18 @@
     return c;
   }
   function refresh() {
-    if (!P.open) return;
+    if (!P.open) return; live();
     const c = root$(), body = $('.pl-body', c), foot = $('.pl-foot', c);
     c.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === P.tab));
     const dir = (b) => '<span class="pl-arr" style="transform:rotate(' + Math.round(b) + 'deg)">↑</span>';
     if (P.tab === 'fuel') {
       body.innerHTML = P.fuel.length ? P.fuel.map((f, i) => `<button class="pl-it" data-go="${i}"><span class="pl-n"><b>${esc(f.name)}</b><small>${esc(f.sub)}${f.open ? ' · ' + f.open : ''}</small></span><span class="pl-d">${dir(f.b)} ${f.d.toFixed(1).replace('.', ',')} km</span></button>`).join('')
         : `<div class="pl-e">${P.busy.fuel ? 'Suche Tankstellen …' : (P.fuelErr ? 'Nicht erreichbar: ' + esc(P.fuelErr) : 'Keine Tankstelle im Umkreis gefunden.')}</div>`;
-      foot.textContent = 'Antippen startet die Navigation · Preise sind nicht enthalten · Quelle: OpenStreetMap';
+      foot.textContent = 'Stand ' + ago(P.fuelT) + (P.fuelErr ? ' (Fehler: ' + P.fuelErr + ')' : '') + ' · Antippen startet die Navigation · keine Preise · Quelle: OpenStreetMap';
     } else {
       body.innerHTML = P.jams.length ? P.jams.map((j, i) => `<button class="pl-it${j.ahead ? ' ahead' : ''}" data-jam="${i}"><span class="pl-n"><b>${esc(j.road)} ${j.blocked ? '· gesperrt' : ''}${j.ahead ? ' · voraus' : ''}</b><small>${esc(j.title)}${j.sub ? ' – ' + esc(j.sub) : ''}${j.desc ? '<br>' + esc(j.desc) : ''}</small></span><span class="pl-d">${j.d != null ? j.d.toFixed(0) + ' km' : ''}</span></button>`).join('')
         : `<div class="pl-e">${P.busy.jam ? 'Lade Meldungen …' : (P.jamErr ? 'Nicht erreichbar: ' + esc(P.jamErr) : 'Keine Autobahn-Meldung im Umkreis von 30 km.')}</div>`;
-      foot.textContent = 'Meldungen der Autobahnen im Umkreis von 30 km · Quelle: Autobahn GmbH des Bundes';
+      foot.textContent = 'Stand ' + ago(P.jamT) + (P.jamErr ? ' (Fehler: ' + P.jamErr + ')' : '') + ' · Autobahnen im Umkreis von 30 km · Quelle: Autobahn GmbH';
     }
   }
   function show(tab, api) { P.api = api || P.api; P.tab = tab || P.tab; P.open = true; root$().classList.add('on'); refresh(); P.api.refresh(false); }
