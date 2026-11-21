@@ -73,6 +73,7 @@ public class GnssPlugin extends Plugin {
                     o.put("lon", l.getLongitude());
                     o.put("acc", l.getAccuracy());
                     o.put("t", l.getTime());
+                    o.put("prov", String.valueOf(l.getProvider()));
                     o.put("speed", l.hasSpeed() ? l.getSpeed() : -1);
                     o.put("bearing", l.hasBearing() ? l.getBearing() : -1);
                     o.put("alt", l.hasAltitude() ? l.getAltitude() : JSObject.NULL);
@@ -94,6 +95,13 @@ public class GnssPlugin extends Plugin {
                 @Override public void onStatusChanged(String p, int s, android.os.Bundle b) { }
             };
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, fixListener, Looper.getMainLooper());
+            // Ersatz drinnen oder ohne Satelliten: Ortung übers Netz, und sofort der letzte bekannte Ort
+            try { if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 0, fixListener, Looper.getMainLooper()); } catch (Exception ignore) { }
+            Location best = null;
+            for (String pr : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, "fused", LocationManager.PASSIVE_PROVIDER}) {
+                try { Location l = lm.getLastKnownLocation(pr); if (l != null && (best == null || l.getTime() > best.getTime())) best = l; } catch (Exception ignore) { }
+            }
+            if (best != null) { final Location b = best; new Handler(Looper.getMainLooper()).post(() -> fixListener.onLocationChanged(b)); }
             call.resolve();
         } catch (SecurityException e) {
             fixListener = null;

@@ -3,7 +3,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   const CAP = window.Capacitor && window.Capacitor.Plugins || {};
-  const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl;
+  const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl, Phone = CAP.Phone;
   const L = window.Limit, Cmd = window.Cmd, OBD = window.OBDC, Design = window.Design, Creator = window.Creator, Places = window.Places;
 
   // ---------- Kacheln ----------
@@ -102,7 +102,8 @@
   // ---------- Position ----------
   function onPos(p) {
     const c = p.coords, t = p.timestamp || Date.now();
-    R.lat = c.latitude; R.lon = c.longitude; R.fixT = Date.now();
+    R.lat = c.latitude; R.lon = c.longitude; R.fixT = Date.now(); R.gpsT = Date.now(); R.approx = false;
+    if (!S.lp || Date.now() - (S.lp.t || 0) > 30000) { S.lp = { lat: R.lat, lon: R.lon, t: Date.now() }; }
     let v = (c.speed != null && c.speed >= 0) ? c.speed * 3.6 : null;
     const lp = R.lastPos;
     if (lp) {
@@ -146,12 +147,20 @@
     return { nn, nap, ell, sel: S.altRef === 'nap' ? nap : S.altRef === 'ell' ? ell : nn };
   }
   const ALTN = { nn: 'NN', nap: 'NAP', ell: 'Ellipsoid' };
+  // Ungefährer Ort (Netz oder letzter bekannter): nur für Tankstellen, Stau, Wetter. Keine Strecke, kein Tempo.
+  function approxPos(f) {
+    if (R.gpsT && Date.now() - R.gpsT < 6000) return;
+    R.lat = f.lat; R.lon = f.lon; R.approx = true; R.acc = f.acc;
+    S.lp = { lat: f.lat, lon: f.lon, t: Date.now() };
+    if (S.online) placesApi.refresh(false);
+  }
   function onErr(e) { R.fixT = 0; setChip('#cGps', 'bad', e && e.code === 1 ? 'GPS: Standort nicht erlaubt' : 'GPS: kein Signal'); }
   let webWatch = null, nativeFix = false;
   if (navigator.geolocation) webWatch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   if (Gnss && Gnss.startFix) {
     Gnss.addListener('fix', (f) => {
       if (!nativeFix) { nativeFix = true; if (webWatch != null) { navigator.geolocation.clearWatch(webWatch); webWatch = null; } }
+      if (f.prov && f.prov !== 'gps') { approxPos(f); return; }
       onPos({ timestamp: f.t || Date.now(), coords: { latitude: f.lat, longitude: f.lon, accuracy: f.acc, speed: f.speed >= 0 ? f.speed : null, heading: f.bearing >= 0 ? f.bearing : null, altitude: f.alt, altitudeAccuracy: null, msl: f.msl, ell: f.ell } });
     });
     Gnss.startFix().catch(() => {});
@@ -212,7 +221,7 @@
   async function fetchStuff() {
     if (!S.online || R.lat == null) return;
     const now = Date.now();
-    if (engine.needFetch(R.lat, R.lon)) {
+    if (engine.needFetch(R.lat, R.lon, false, R.speed)) {
       const ok = await engine.fetchRoads(R.lat, R.lon, (u, o) => fetch(u, o));
       R.netOk = ok; if (ok) { updateLimit(); render(); } setNet();
     }
@@ -235,8 +244,8 @@
     }
   }
   setInterval(() => { if (R.lat != null) fetchStuff(); }, 5000);
-  setInterval(() => { if (S.online && R.lat != null && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 10000);
-  setTimeout(() => { if (S.online && R.lat != null) placesApi.refresh(false); }, 3000);
+  setInterval(() => { if (S.online && (R.lat != null || S.lp) && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 10000);
+  setTimeout(() => { if (S.online && (R.lat != null || S.lp)) placesApi.refresh(false); }, 1500);
 
   // ---------- Anzeige ----------
   function setChip(id, cls, text) { const el = $(id); el.className = 'chip ' + cls; el.querySelector('span').textContent = text; }
@@ -471,7 +480,7 @@
     const url = o.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}&travelmode=driving` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.query || '')}`;
     window.open(url, '_blank');
   }
-  const placesApi = { navigate: navigateTo, toast, refresh: (force) => Places.ensure(R.lat != null ? { lat: R.lat, lon: R.lon, heading: headingNow() } : null, S.fuelKm, !!force) };
+  const placesApi = { navigate: navigateTo, toast, refresh: (force) => Places.ensure(R.lat != null ? { lat: R.lat, lon: R.lon, heading: R.approx ? null : headingNow() } : (S.lp ? { lat: S.lp.lat, lon: S.lp.lon, heading: null } : null), S.fuelKm, !!force) };
   const errMsg = (e) => (e && e.message) || String(e);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let appsCache = null;
@@ -495,6 +504,49 @@
     if (acc) { await AppCtl.ui({ action: 'split' }).catch(() => {}); await sleep(1000); }
     try { await AppCtl.adjacent({ pkg }); } catch (e) { return 'Die App ist nicht startbar: ' + errMsg(e); }
     return acc ? 'Geteilter Bildschirm mit ' + label + '.' : label + ' wird daneben geöffnet. Falls nichts passiert, schalte die Bedienungshilfe ein oder teile den Bildschirm über die App-Übersicht.';
+  }
+  // ---------- Telefon ----------
+  let pickList = null;
+  const spellNum = (n) => String(n).replace(/[^0-9+]/g, '').split('').join(' ').replace(/\+/g, 'plus');
+  async function phoneAct(a) {
+    if (!Phone) return 'Telefonieren geht nur in der APK.';
+    const perm = await Phone.ensure().catch(() => ({ ok: false }));
+    const dial = async (name, num) => { const r = await Phone.dial({ number: num }); return r.direct ? 'Ich rufe ' + name + ' an.' : 'Wähltastatur mit ' + name + ' geöffnet. Bitte grün drücken.'; };
+    switch (a.a) {
+      case 'hangup':
+        try { await Phone.hangup(); return ''; } catch (e) { if (AppCtl && S.appCtl) { await AppCtl.ui({ action: 'click', text: 'Auflegen' }).catch(() => AppCtl.ui({ action: 'click', text: 'Beenden' })); return ''; } return 'Auflegen ist nicht erlaubt. Bitte die Telefon-Erlaubnis geben.'; }
+      case 'answer':
+        try { await Phone.answer(); return ''; } catch (e) { return 'Annehmen ist nicht erlaubt. Bitte die Telefon-Erlaubnis geben.'; }
+      case 'dial': return dial(spellNum(a.number), a.number);
+      case 'pick': {
+        if (!pickList || !pickList.list[a.i]) return 'Es gibt keine Auswahl.';
+        const c = pickList.list[a.i], mode = pickList.mode; pickList = null;
+        return mode === 'number' ? c.name + ': ' + spellNum(c.number) : dial(c.name, c.number);
+      }
+      case 'recent': case 'callback': {
+        const r = await Phone.recent().catch(() => null);
+        const l = r && r.list || []; if (!l.length) return 'Ich kann die Anrufliste nicht lesen.';
+        const c = l.find((x) => x.type === 3 || x.type === 1) || l[0];
+        const who = c.name || spellNum(c.number);
+        if (a.a === 'callback') return dial(who, c.number);
+        return (c.type === 3 ? 'Verpasster Anruf von ' : 'Zuletzt ') + who + ', um ' + new Date(c.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + '. Sage „zurückrufen“.';
+      }
+      case 'call': case 'number': {
+        if (!perm.ok) return 'Bitte erlaube der App Kontakte und Telefon, dann noch einmal sagen.';
+        const r = await Phone.find({ name: a.name }).catch((e) => { throw new Error(errMsg(e)); });
+        const l = (r.list || []);
+        if (!l.length) return 'Ich finde ' + a.name + ' nicht in deinen Kontakten.';
+        const top = l.filter((c) => c.score >= l[0].score - 2);
+        const uniq = [...new Map(top.map((c) => [c.name, c])).values()];
+        if (uniq.length > 1 || (top.length > 1 && new Set(top.map((c) => c.number.replace(/\D/g, ''))).size > 1)) {
+          pickList = { mode: a.a, list: top.slice(0, 4) };
+          return 'Welche? ' + pickList.list.map((c, i) => (i + 1) + ': ' + c.name + (c.type ? ' ' + c.type : '')).join(', ') + '. Sage die Nummer, zum Beispiel „die erste“.';
+        }
+        const c = l[0];
+        return a.a === 'number' ? c.name + ' hat die Nummer ' + spellNum(c.number) + '.' : dial(c.name, c.number);
+      }
+    }
+    return '';
   }
   function appAct(a) {
     if (!AppCtl && a.act !== 'navto') return Promise.resolve('Das geht nur in der APK.');
@@ -649,6 +701,7 @@
       case 'places': Places.show(a.tab, placesApi); msg = a.tab === 'fuel' ? 'Tankstellen in der Nähe. Antippen startet die Navigation.' : 'Autobahn-Meldungen.'; break;
       case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
       case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
+      case 'phone': phoneAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e))); break;
       case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto':
         if (!['sys', 'media', 'sysvol', 'openapp', 'navto'].includes(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
         appAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e)));
@@ -736,6 +789,7 @@
       <div class="info">Ein Design ist eine Datei. Du kannst sie laden, ohne die App neu zu bauen. Schicke mir Bilder mit Beschriftung, ich mache daraus Dateien, oder baue selbst im Creator.</div>`);
     h += det('apps', 'Apps, Split-Bildschirm, Navigation', () => `
       ${chk('appCtl', 'Andere Apps per Sprache bedienen', 'öffnen, schließen, zurück, tippen, scrollen, schreiben')}
+      <button class="act" data-do="phoneperm">Telefon und Kontakte erlauben</button>
       <button class="act" data-do="accopen">Bedienungshilfe prüfen und öffnen</button>
       <div class="row"><label>App für den geteilten Bildschirm<small>${S.splitApp.label ? Design.esc(S.splitApp.label) : 'noch keine gewählt'}</small></label><button class="mv" style="width:auto;padding:0 10px" data-do="appsload">Wählen</button></div>
       <div id="applist" class="applist"></div>
@@ -781,6 +835,7 @@
     if (t.dataset.mv) { const i = S.tiles.indexOf(t.dataset.mv), j = clamp(i + +t.dataset.d, 0, S.tiles.length - 1); S.tiles.splice(j, 0, S.tiles.splice(i, 1)[0]); save(true); render(); return buildPanel(); }
     const d = t.dataset.do;
     if (d === 'close') closeSheet();
+    if (d === 'phoneperm') { if (!Phone) toast('Nur in der APK'); else Phone.ensure().then((r) => toast(r.ok ? 'Telefon und Kontakte erlaubt' : 'Nicht erlaubt. In den App-Infos unter Berechtigungen freigeben.', 6000)); }
     if (d === 'dnew') openCreator(null);
     if (d === 'gguide') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox">' + Guide.html() + '<button class="act pri" data-g="ai">KI-Text kopieren</button><button class="act" data-g="x">Schließen</button></div>'; o.onclick = (ev) => { const g = ev.target.dataset.g; if (g === 'x' || ev.target === o) o.remove(); if (g === 'ai') copyAi(); }; document.body.appendChild(o); }
     if (d === 'gai') copyAi();

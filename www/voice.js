@@ -75,6 +75,17 @@
     // --- Hilfe ---
     if (/^(hilfe|befehle|was kann ich sagen|was kannst du)/.test(s)) return { act: 'help' };
 
+    // --- Telefon ---
+    const digits = (t) => { const w = { null: 0, eins: 1, ein: 1, zwei: 2, zwo: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, plus: '+' }; const o = t.split(' ').map((q) => (w[q] != null ? w[q] : q)).join('').replace(/[^0-9+]/g, ''); return o.length >= 3 ? o : null; };
+    if (/^(auflegen|leg auf|lege auf|anruf beenden|gespräch beenden|telefonat beenden|beende (den )?anruf)$/.test(s)) return { act: 'phone', a: 'hangup' };
+    if (/^(anruf )?(annehmen|abnehmen|rangehen|ran gehen|drangehen)$/.test(s)) return { act: 'phone', a: 'answer' };
+    if (/^(wer hat (mich )?angerufen|letzter anruf|letzte anrufe|verpasste anrufe?)$/.test(s)) return { act: 'phone', a: 'recent' };
+    if (/^(zurückrufen|rückruf|ruf zurück|rufe zurück)$/.test(s)) return { act: 'phone', a: 'callback' };
+    if ((m = s.match(/^(?:die |den |nummer |kontakt )?(erste|ersten|zweite|zweiten|dritte|dritten|vierte|vierten|eins|zwei|drei|vier|1|2|3|4)$/))) return { act: 'phone', a: 'pick', i: { erste: 0, ersten: 0, eins: 0, 1: 0, zweite: 1, zweiten: 1, zwei: 1, 2: 1, dritte: 2, dritten: 2, drei: 2, 3: 2, vierte: 3, vierten: 3, vier: 3, 4: 3 }[m[1]] };
+    if ((m = s.match(/^(?:wähle|wählen|anrufen|ruf|rufe)\s+(?:die\s+)?(?:nummer\s+)?([0-9+ ]+|(?:(?:null|eins|ein|zwei|zwo|drei|vier|fünf|sechs|sieben|acht|neun|plus)\s*)+)(?:\s+an)?$/)) && digits(m[1])) return { act: 'phone', a: 'dial', number: digits(m[1]) };
+    if ((m = s.match(/^(?:wie (?:ist|lautet) )?(?:die )?(?:telefon)?nummer (?:von|vom|von der) (.+)$/)) || (m = s.match(/^(.+?)s? (?:telefon)?nummer$/))) return { act: 'phone', a: 'number', name: m[1] };
+    if ((m = s.match(/^(?:ruf|rufe)\s+(?:bei\s+)?(.+?)\s+an$/)) || (m = s.match(/^(?:anrufen|telefonieren mit|telefoniere mit|anruf an|wähle)\s+(.+)$/)) || (m = s.match(/^(.+?)\s+anrufen$/))) return { act: 'phone', a: 'call', name: m[1].replace(/^(den |die |der |meine |meinen |mein )/, '') };
+
     // --- Unterwegs: Tankstellen, Stau ---
     if (/(tankstelle|tanken|sprit)/.test(s) && !/(tank(füllung)?\s*(anzeigen|ausblenden)|verstecke|blende)/.test(s)) return { act: 'places', tab: 'fuel' };
     if (/\b(stau|staus|verkehr|autobahn ?meldung\w*|verkehrsmeldung\w*)\b/.test(s) && !/(verstecke|ausblenden|entferne|blende)/.test(s)) return { act: 'places', tab: 'jam' };
@@ -209,7 +220,7 @@
   }
 
   const HELP = [
-    'Wie schnell darf ich fahren?', 'Wie schnell fahre ich?', 'Zeige Höhe', 'Höhe über NAP', 'Höhe über Normalnull', 'Höhe Ellipsoid', 'Verstecke Beschleunigung', 'Nur Tempo', 'Alle Werte',
+    'Wie schnell darf ich fahren?', 'Wie schnell fahre ich?', 'Zeige Höhe', 'Höhe über NAP', 'Ruf Peter an', 'Wähle 0171 1234567', 'Auflegen', 'Annehmen', 'Nummer von Peter', 'Wer hat angerufen', 'Höhe über Normalnull', 'Höhe Ellipsoid', 'Verstecke Beschleunigung', 'Nur Tempo', 'Alle Werte',
     'Thema Nacht / Tag / Neon / Rot', 'Akzentfarbe Orange', 'Querformat / Hochformat / Automatisch drehen',
     'Spalten drei', 'Schrift größer', 'Kacheln kleiner', 'Fahrzeug Motorrad / Auto / Gespann / Lkw',
     'Toleranz fünf', 'Warnton an / aus', 'Limit ansagen an / aus', 'Meilen / Kilometer pro Stunde',

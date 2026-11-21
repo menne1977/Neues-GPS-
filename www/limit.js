@@ -199,7 +199,9 @@
       this.country = 'DE'; this.servers = [
         'https://overpass-api.de/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
-        'https://overpass.private.coffee/api/interpreter'];
+        'https://overpass.private.coffee/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+      this.radius = 600;
       this.rot = 0; this.busy = false; this.lastTry = 0; this.error = '';
     }
 
@@ -217,29 +219,32 @@
     }
 
     // Abruf bei Bedarf: erste Position, mehr als 180 m vom Mittelpunkt, Daten älter als 15 min oder keine Straße gefunden
-    needFetch(lat, lon, force) {
-      if (this.busy) return false;
+    // Radius wächst mit dem Tempo: weniger Abfragen bei schneller Fahrt (Overpass sperrt sonst kurz), trotzdem genug Vorlauf
+    needFetch(lat, lon, force, speedKmh) {
+      this.want = Math.round(Math.min(2500, Math.max(600, (speedKmh || 0) * 16)));
+      if (this.busy && Date.now() - this.lastTry < 15000) return false;
       const now = Date.now();
       if (now - this.lastTry < (this.error ? 20000 : 4000)) return false;
       if (!this.center || force) return true;
-      if (hav(lat, lon, this.center.lat, this.center.lon) > 180) return true;
+      if (hav(lat, lon, this.center.lat, this.center.lon) > this.radius * 0.5) return true;
       return now - this.fetchedAt > 15 * 60000;
     }
 
     async fetchRoads(lat, lon, fetchFn) {
       this.busy = true; this.lastTry = Date.now();
-      const q = this.query(lat, lon, 500);
+      const rad = this.want || 600; const q = this.query(lat, lon, rad);
       let lastErr = null;
       for (let i = 0; i < this.servers.length; i++) {
         const url = this.servers[(this.rot + i) % this.servers.length];
         const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const to = setTimeout(() => ctl && ctl.abort(), 9000);
         try {
-          const r = await fetchFn(url + '?data=' + encodeURIComponent(q), ctl ? { signal: ctl.signal } : {});
+          // Feste Frist per Wettlauf: in der APK wird ein Abbruch nicht immer beachtet
+          const r = await Promise.race([fetchFn(url + '?data=' + encodeURIComponent(q), ctl ? { signal: ctl.signal } : {}), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 9000))]);
           clearTimeout(to);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const j = await r.json();
-          this.load(j, lat, lon); this.error = ''; this.rot = (this.rot + i) % this.servers.length; this.busy = false;
+          this.load(j, lat, lon); this.radius = rad; this.error = ''; this.rot = (this.rot + i) % this.servers.length; this.busy = false;
           return true;
         } catch (e) { clearTimeout(to); lastErr = e; }
       }

@@ -10,10 +10,10 @@
 
   // Gestaffelt wie in der alten App: erster Server sofort, bei Fehler oder nach 3 s zusätzlich der nächste, der erste Treffer gewinnt.
   // Verlässt sich nicht auf Abbrechen (in der APK kann eine Anfrage sonst ewig hängen), sondern hat eine feste Frist.
-  const OV = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+  const OV = ['https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
   let ovStart = 0;
   function ov(q, hedge) {
-    const first = ovStart++ % OV.length;
+    const first = ovStart++ % 2; // Tempolimit nutzt zuerst overpass-api.de, hier zuerst andere Server
     return new Promise((resolve, reject) => {
       let done = false, failed = 0, next = 0, last = ''; const timers = [];
       const fin = (fn, v) => { if (done) return; done = true; timers.forEach(clearTimeout); fn(v); };
@@ -55,7 +55,7 @@
       let fails = 0;
       const res = await Promise.all(refs.map(async (r) => {
         try {
-          const x = await fetch(`https://verkehr.autobahn.de/o/autobahn/${r}/services/warning`); if (!x.ok) throw new Error('HTTP ' + x.status);
+          const x = await Promise.race([fetch(`https://verkehr.autobahn.de/o/autobahn/${r}/services/warning`), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 12000))]); if (!x.ok) throw new Error('HTTP ' + x.status);
           const w = await x.json();
           return (w.warning || []).map((y) => {
             const c = y.coordinate || {}; const la = parseFloat(c.lat), lo = parseFloat(c.long);
@@ -74,8 +74,8 @@
 
   // Aus der App aufgerufen (Position und Einstellungen)
   function ensure(pos, km, force) {
-    if (!pos || pos.lat == null) return;
-    P.pos = pos;
+    if (!pos || pos.lat == null) { P.noPos = true; refresh(); return; }
+    P.noPos = false; P.pos = pos;
     const mv = (p) => p ? L.hav(p.lat, p.lon, pos.lat, pos.lon) / 1000 : 999;
     if (force || Date.now() - P.fuelT > 5 * 60000 || mv(P.fuelPos) > 2 || P.fuelErr) loadFuel(pos.lat, pos.lon, km);
     if (force || Date.now() - P.jamT > 3 * 60000 || mv(P.jamPos) > 6 || P.jamErr) loadJams(pos.lat, pos.lon, pos.heading);
@@ -120,11 +120,11 @@
     const dir = (b) => '<span class="pl-arr" style="transform:rotate(' + Math.round(b) + 'deg)">↑</span>';
     if (P.tab === 'fuel') {
       body.innerHTML = P.fuel.length ? P.fuel.map((f, i) => `<button class="pl-it" data-go="${i}"><span class="pl-n"><b>${esc(f.name)}</b><small>${esc(f.sub)}${f.open ? ' · ' + f.open : ''}</small></span><span class="pl-d">${dir(f.b)} ${f.d.toFixed(1).replace('.', ',')} km</span></button>`).join('')
-        : `<div class="pl-e">${P.busy.fuel ? 'Suche Tankstellen …' : (P.fuelErr ? 'Nicht erreichbar: ' + esc(P.fuelErr) : 'Keine Tankstelle im Umkreis gefunden.')}</div>`;
+        : `<div class="pl-e">${P.noPos ? 'Warte auf den Standort … (GPS oder Netz)' : P.busy.fuel ? 'Suche Tankstellen …' : (P.fuelErr ? 'Nicht erreichbar: ' + esc(P.fuelErr) : 'Keine Tankstelle im Umkreis gefunden.')}</div>`;
       foot.textContent = 'Stand ' + ago(P.fuelT) + (P.fuelErr ? ' (Fehler: ' + P.fuelErr + ')' : '') + ' · Antippen startet die Navigation · keine Preise · Quelle: OpenStreetMap';
     } else {
       body.innerHTML = P.jams.length ? P.jams.map((j, i) => `<button class="pl-it${j.ahead ? ' ahead' : ''}" data-jam="${i}"><span class="pl-n"><b>${esc(j.road)} ${j.blocked ? '· gesperrt' : ''}${j.ahead ? ' · voraus' : ''}</b><small>${esc(j.title)}${j.sub ? ' – ' + esc(j.sub) : ''}${j.desc ? '<br>' + esc(j.desc) : ''}</small></span><span class="pl-d">${j.d != null ? j.d.toFixed(0) + ' km' : ''}</span></button>`).join('')
-        : `<div class="pl-e">${P.busy.jam ? 'Lade Meldungen …' : (P.jamErr ? 'Nicht erreichbar: ' + esc(P.jamErr) : 'Keine Autobahn-Meldung im Umkreis von 30 km.')}</div>`;
+        : `<div class="pl-e">${P.noPos ? 'Warte auf den Standort … (GPS oder Netz)' : P.busy.jam ? 'Lade Meldungen …' : (P.jamErr ? 'Nicht erreichbar: ' + esc(P.jamErr) : 'Keine Autobahn-Meldung im Umkreis von 30 km.')}</div>`;
       foot.textContent = 'Stand ' + ago(P.jamT) + (P.jamErr ? ' (Fehler: ' + P.jamErr + ')' : '') + ' · Autobahnen im Umkreis von 30 km · Quelle: Autobahn GmbH';
     }
   }
