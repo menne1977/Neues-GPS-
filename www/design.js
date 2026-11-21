@@ -172,7 +172,12 @@
   }
 
   // Datei oder Text -> geprüftes Design
-  function parse(text) { return validate(JSON.parse(text)); }
+  function parse(text) {
+    let t = String(text).trim();
+    const f = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (f) t = f[1].trim();
+    const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a > 0 || (b >= 0 && b < t.length - 1)) t = t.slice(a, b + 1);
+    return validate(JSON.parse(t));
+  }
 
   // Bild verkleinern und als Data-URL zurückgeben (Dateigröße klein halten)
   function fileToDataUrl(file, maxPx) {

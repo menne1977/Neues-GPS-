@@ -418,6 +418,7 @@
   }
   let designList = [];
   async function loadDesigns() { try { designList = await Design.Store.list(); } catch (e) { designList = []; } if (!$('#sheet').hidden) buildPanel(); }
+  function copyAi() { const t = Guide.ai(); const ok = () => toast('KI-Text kopiert. In die andere KI einfügen, Bild dazu geben.', 6000); const fb = () => { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Kopieren nicht möglich', 4000); } x.remove(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, fb); else fb(); }
   async function importText(t) { const d = Design.parse(t); await Design.Store.put(d); await loadDesigns(); return d; }
   async function fetchDesigns() {
     const r = await fetch('https://api.github.com/repos/menne1977/Neues-GPS-/contents/designs'); if (!r.ok) throw new Error(r.status === 404 ? 'Auf dem Server liegen noch keine Designs' : 'HTTP ' + r.status);
@@ -693,6 +694,9 @@
       ${sel('dLand', 'Tacho quer', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       ${sel('dPort', 'Tacho hochkant', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       <button class="act pri" data-do="dnew">Eigenen Tacho erstellen</button>
+      <button class="act" data-do="gguide">Anleitung</button>
+      <button class="act" data-do="gai">KI-Text kopieren (für andere KI)</button>
+      <button class="act" data-do="dpaste">Design-Text einfügen (von KI)</button>
       <button class="act" data-do="dload">Design-Datei laden (.tacho.json)</button>
       <button class="act" data-do="dserver">Designs vom Server holen</button>
       ${designList.map((d) => `<div class="tl"><label>${Design.esc(d.name)}</label><button class="mv" style="width:auto;padding:0 8px" data-do="dedit" data-n="${Design.esc(d.name)}">Bearbeiten</button><button class="mv" style="width:auto;padding:0 8px" data-do="dexp" data-n="${Design.esc(d.name)}">Export</button><button class="mv" data-do="ddel" data-n="${Design.esc(d.name)}">✕</button></div>`).join('')}
@@ -741,6 +745,9 @@
     const d = t.dataset.do;
     if (d === 'close') closeSheet();
     if (d === 'dnew') openCreator(null);
+    if (d === 'gguide') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox">' + Guide.html() + '<button class="act pri" data-g="ai">KI-Text kopieren</button><button class="act" data-g="x">Schließen</button></div>'; o.onclick = (ev) => { const g = ev.target.dataset.g; if (g === 'x' || ev.target === o) o.remove(); if (g === 'ai') copyAi(); }; document.body.appendChild(o); }
+    if (d === 'gai') copyAi();
+    if (d === 'dpaste') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox"><h3>Design-Text einfügen</h3><textarea id="gpaste" placeholder="Hier den Text der KI einfügen"></textarea><button class="act pri" data-g="ok">Laden</button><button class="act" data-g="x">Abbrechen</button></div>'; o.onclick = async (ev) => { const g = ev.target.dataset.g; if (g === 'x') o.remove(); if (g === 'ok') { try { const dd = await importText($('#gpaste').value); o.remove(); toast('Design geladen: ' + dd.name + '. Jetzt oben auswählen.', 6000); buildPanel('designs'); } catch (er) { toast('Das ist kein gültiges Design: ' + errMsg(er), 7000); } } }; document.body.appendChild(o); }
     if (d === 'dedit') openCreator(t.dataset.n);
     if (d === 'dload') Creator.pickFile('.json,application/json').then(async (f) => { if (!f) return; try { const dd = await importText(await f.text()); toast('Design geladen: ' + dd.name); } catch (er) { toast('Fehler: ' + errMsg(er), 6000); } });
     if (d === 'dserver') { toast('Hole Designs …', 6000); fetchDesigns().then((n) => toast(n ? n + ' Designs geladen' : 'Keine Designs auf dem Server', 4000)).catch((er) => toast('Server: ' + errMsg(er), 6000)); }
