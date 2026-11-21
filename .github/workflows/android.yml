@@ -1,0 +1,70 @@
+name: APK bauen
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: Android-Projekt erzeugen
+        run: npx cap add android
+
+      - name: Berechtigungen eintragen (Standort, Internet, Mikrofon)
+        run: |
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<queries><intent><action android:name="android.speech.RecognitionService" /></intent><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#</application>#<service android:name=".KeepAliveService" android:exported="false" android:foregroundServiceType="microphone" />\n    </application>#' android/app/src/main/AndroidManifest.xml
+
+      - name: Manifest zur Kontrolle ausgeben
+        run: cat android/app/src/main/AndroidManifest.xml
+
+      - name: Android-Plugins einfügen (Satelliten, Sprache, OBD)
+        run: |
+          cp android-overlay/*.java android/app/src/main/java/de/menne/gps/
+
+      - name: Vosk-Bibliothek einbinden (Aktivierungswort)
+        run: |
+          sed -i "0,/^dependencies {/s//dependencies {\n    implementation 'com.alphacephei:vosk-android:0.3.47'\n    implementation 'net.java.dev.jna:jna:5.13.0@aar'/" android/app/build.gradle
+          sed -i "0,/defaultConfig {/s//defaultConfig {\n        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }/" android/app/build.gradle
+          grep -n -A3 "defaultConfig {\|^dependencies {" android/app/build.gradle
+
+      - name: Web-Dateien übernehmen
+        run: npx cap sync android
+
+      - name: Kleines deutsches Sprachmodell (Vosk) laden
+        run: |
+          curl -fL --retry 4 --retry-delay 5 -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-de-0.15.zip
+          unzip -q model.zip
+          mkdir -p android/app/src/main/assets
+          mv vosk-model-small-de-0.15 android/app/src/main/assets/model-de
+          cat /proc/sys/kernel/random/uuid > android/app/src/main/assets/model-de/uuid
+          du -sh android/app/src/main/assets/model-de
+
+      - name: Debug-APK bauen
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: APK hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: gps-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

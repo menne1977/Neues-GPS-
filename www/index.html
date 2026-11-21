@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#070b12">
+<title>Tacho</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="port st-none" data-theme="nacht">
+<main id="app">
+  <header id="bar">
+    <div class="chip" id="cGps"><i></i><span>GPS</span></div>
+    <div class="chip" id="cNet"><i></i><span>Online</span></div>
+    <div class="chip" id="cObd" hidden><i></i><span>OBD</span></div>
+    <div id="spacer"></div>
+    <button class="btn" id="gear" aria-label="Einstellungen">⚙</button>
+  </header>
+  <section id="hero">
+    <div id="signwrap"><div class="sign unk" id="sign"><span id="signnum">–</span></div><div id="signcap"></div></div>
+    <div id="speedwrap"><div id="speed">0</div><div id="unit">km/h</div></div>
+    <div id="trackwrap">
+      <div id="track"><i id="fill"></i><i id="over"></i><b id="notch"></b></div>
+      <div id="delta"><span id="dtxt"></span><span id="dmax"></span></div>
+    </div>
+    <div id="road"><span id="roadname"></span><span id="roadmeta"></span></div>
+    <div id="next" hidden><small>gleich</small><div class="sign" id="nsign"><span></span></div><span id="nd"></span></div>
+  </section>
+  <section id="tiles"></section>
+</main>
+<button id="mic" aria-label="Sprachbefehl"></button>
+<div id="toast"></div>
+<div id="sheet" hidden><div id="panel"></div></div>
+<script src="limit.js"></script>
+<script src="voice.js"></script>
+<script src="obd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
