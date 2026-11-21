@@ -20,3 +20,7 @@ Neuer GPS-Tacho als Android-App (Capacitor). Läuft quer und hochkant.
 Die App verwaltet ihre Daten unter eigenem Schlüssel und teilt nichts mit der alten App.
 
 Datenquellen: OpenStreetMap-Mitwirkende (ODbL), Open-Meteo. Nur für den privaten Gebrauch.
+
+## Eigene Tachos
+Siehe `DESIGN-FORMAT.md`. Beispiele in `designs/`. Creator in der App: Einstellungen → Tacho-Designs.
+Weitere Funktionen: Tankstellen und Autobahn-Stau (⛽), Split-Bildschirm (◫), Steuerung anderer Apps per Sprache (Bedienungshilfe nötig).

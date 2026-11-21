@@ -4,18 +4,18 @@
   const $ = (s) => document.querySelector(s);
   const CAP = window.Capacitor && window.Capacitor.Plugins || {};
   const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl;
-  const L = window.Limit, Cmd = window.Cmd, OBD = window.OBDC;
+  const L = window.Limit, Cmd = window.Cmd, OBD = window.OBDC, Design = window.Design, Creator = window.Creator, Places = window.Places;
 
   // ---------- Kacheln ----------
   const TILES = [
     ['alt', 'Höhe'], ['dir', 'Richtung'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'], ['max', 'Höchsttempo'], ['avg', 'Ø Tempo Trip'],
     ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip'], ['total', 'Gesamt'], ['clock', 'Uhrzeit'], ['gps', 'GPS-Genauigkeit'],
-    ['sat', 'Satelliten'], ['wx', 'Wetter'], ['wind', 'Böen'], ['grade', 'Steigung'], ['free', 'Spielraum'],
+    ['sat', 'Satelliten'], ['wx', 'Wetter'], ['wind', 'Böen'], ['grade', 'Steigung'], ['free', 'Spielraum'], ['tank', 'Nächste Tankstelle'], ['stau', 'Autobahn-Meldungen'],
     ['rpm', 'Drehzahl (OBD)'], ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'],
     ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
   ];
   const TNAME = Object.fromEntries(TILES);
-  const DEFTILES = ['alt', 'dir', 'acc', 'max', 'day', 'trip', 'clock', 'wx'];
+  const DEFTILES = ['alt', 'dir', 'acc', 'max', 'day', 'trip', 'total', 'clock', 'tank', 'stau'];
   const OBD_IDS = ['rpm', 'cool', 'oil', 'thr', 'load', 'volt', 'fuel', 'l100'];
 
   // ---------- Einstellungen ----------
@@ -23,10 +23,16 @@
     theme: 'nacht', accent: '#3ddc97', layout: 'auto', colsP: 2, colsL: 2, hero: 1, tsize: 1,
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
+    ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '',
     veh: 'auto', tiles: DEFTILES.slice(), obd: { type: 'bt', addr: '', host: '192.168.0.10', port: 35000 },
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
   let S = load();
+  if (!S.ver) { // Update: Gesamtkilometer, Tankstellen und Stau erscheinen auch bei bestehender Einrichtung
+    S.ver = 2;
+    ['total', 'tank', 'stau'].forEach((id) => { if (!S.tiles.includes(id)) S.tiles.push(id); });
+  }
+  let cur = null; // aktives eigenes Design
   function load() {
     try {
       const x = JSON.parse(localStorage.getItem('tacho2') || 'null');
@@ -73,6 +79,7 @@
     b.dataset.theme = S.theme;
     st.setProperty('--acc', S.accent); st.setProperty('--hs', S.hero); st.setProperty('--ts', S.tsize);
     st.setProperty('--cols', isLand() ? S.colsL : S.colsP);
+    if (typeof applyDesign === 'function') applyDesign();
     const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = getComputedStyle(b).getPropertyValue('--bg') || '#070b12';
   }
   async function applyOrient() {
@@ -205,6 +212,7 @@
     }
   }
   setInterval(() => { if (R.lat != null) fetchStuff(); }, 5000);
+  setInterval(() => { if (S.online && R.lat != null && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 30000);
 
   // ---------- Anzeige ----------
   function setChip(id, cls, text) { const el = $(id); el.className = 'chip ' + cls; el.querySelector('span').textContent = text; }
@@ -246,6 +254,7 @@
     if (Math.abs(diff) > 0.02) { heroShown += diff * Math.min(1, dt * 7); if (Math.abs(heroTarget - heroShown) < 0.05) heroShown = heroTarget; }
     const txt = S.decimals ? fmt(heroShown, 1) : String(Math.round(heroShown));
     const el = $('#speed'); if (el.textContent !== txt) el.textContent = txt;
+    if (cur) cur.m.update(designApi());
     requestAnimationFrame(heroLoop);
   }
   requestAnimationFrame(heroLoop);
@@ -336,6 +345,8 @@
       case 'wind': return R.wx ? { v: fmt(R.wx.wind_gusts_10m * fu()), u: uName(), s: 'Böen' } : { v: '–', u: uName(), dim: true };
       case 'grade': return { v: R.grade != null ? (R.grade > 0 ? '+' : '') + fmt(R.grade, 1) : '–', u: '%', s: R.grade == null ? 'wird gemessen' : R.grade > 1.5 ? 'bergauf' : R.grade < -1.5 ? 'bergab' : 'eben', dim: R.grade == null };
       case 'free': { const lim = limitKmh(); return lim == null ? { v: '–', u: uName(), s: 'kein Limit', dim: true } : { v: ((lim - R.speed) >= 0 ? '+' : '−') + Math.abs(Math.round((lim - R.speed) * fu())), u: uName(), s: 'zum Limit' }; }
+      case 'tank': { const t = Places.summary().fuel; return t ? { v: fmt(t.d * (S.unit === 'mph' ? MPH : 1), 1), u: dName(), s: t.name } : { v: '–', u: dName(), s: S.online ? 'tippen: suchen' : 'offline', dim: true }; }
+      case 'stau': { const t = Places.summary(); return { v: String(t.jams), u: '', s: t.ahead ? t.ahead + ' voraus' : (t.nearest && t.nearest.d != null ? 'nächste ' + Math.round(t.nearest.d) + ' km' : 'tippen: laden'), dim: !t.jams }; }
       case 'rpm': return ob('rpm', 0, 'U/min');
       case 'cool': return ob('cool', 0, '°C');
       case 'oil': return ob('oil', 0, '°C');
@@ -354,12 +365,127 @@
     let h = '';
     for (const id of S.tiles) {
       const t = tileData(id);
-      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}" data-id="${id}"><div class="l">${TNAME[id].replace(' (OBD)', '')}</div><div class="v">${t.arrow != null || id === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
+      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}${id === 'tank' || id === 'stau' ? ' tap' : ''}" data-id="${id}"><div class="l">${TNAME[id].replace(' (OBD)', '')}</div><div class="v">${t.arrow != null || id === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
     }
     if (box._h !== h) { box.innerHTML = h; box._h = h; }
   }
   setInterval(() => { if (R.lat != null || S.tiles.includes('clock')) renderTiles(); }, 1000);
   OBD.onChange = () => { setObdChip(); renderTiles(); };
+
+
+  // ---------- Werte für eigene Designs ----------
+  function getVal(src) {
+    const o = OBD.vals || {}, f = fu(), dk = S.unit === 'mph' ? MPH : 1, none = { n: null, t: '–' };
+    const num = (x) => (x == null || !isFinite(x) ? none : { n: x });
+    switch (src) {
+      case 'speed': return { n: heroShown };
+      case 'kmh': return { n: heroShown / f };
+      case 'limit': return R.limit && R.limit.v != null ? { n: R.limit.v * f } : { n: null, t: R.limit && R.limit.kind === 'none' ? '∞' : '–' };
+      case 'free': { const l = limitKmh(); return l == null ? none : { n: (l - R.speed) * f }; }
+      case 'rpm': case 'cool': case 'oil': case 'thr': case 'load': case 'volt': case 'fuel': case 'l100': return num(o[src]);
+      case 'alt': return num(R.alt);
+      case 'dir': return num(headingNow());
+      case 'dirname': return { n: null, t: dirName(headingNow()) };
+      case 'acc': return num(R.accel);
+      case 'g': return num(R.g);
+      case 'max': return { n: S.day.max * f };
+      case 'avg': return S.trip.mt > 30000 ? { n: S.trip.dist / (S.trip.mt / 3600000) * f } : none;
+      case 'time': return { n: null, t: hms(S.trip.mt) };
+      case 'day': return { n: S.day.dist * dk };
+      case 'trip': return { n: S.trip.dist * dk };
+      case 'total': return { n: S.total * dk };
+      case 'clock': { const d = new Date(); return { n: null, t: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') }; }
+      case 'date': return { n: null, t: new Date().toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }) };
+      case 'gps': return num(R.acc);
+      case 'sat': return { n: null, t: R.sats ? R.sats.used + '/' + R.sats.visible : '–' };
+      case 'temp': return R.wx ? { n: R.wx.temperature_2m } : none;
+      case 'gust': return R.wx ? { n: R.wx.wind_gusts_10m * f } : none;
+      case 'grade': return num(R.grade);
+      default: return none;
+    }
+  }
+  function designApi() {
+    return { get: getVal, state: R.state, limit: R.limit, limitKmh: limitKmh(), fu: fu(), road: R.road, next: S.preview ? R.next : null, limitObj: R.limit, signHTML };
+  }
+  async function applyDesign() {
+    const name = isLand() ? S.dLand : S.dPort, b = document.body;
+    if (!name) { if (cur) { cur = null; $('#custom').innerHTML = ''; } b.classList.remove('cd'); return; }
+    if (cur && cur.name === name) { cur.m.layout(); return; }
+    let d = null; try { d = await Design.Store.get(name); } catch (e) { /* kein Speicher */ }
+    if (!d) { b.classList.remove('cd'); cur = null; return; }
+    if ((isLand() ? S.dLand : S.dPort) !== name) return;
+    b.classList.add('cd'); cur = { name, d, m: Design.mount($('#custom'), d, {}) };
+  }
+  let designList = [];
+  async function loadDesigns() { try { designList = await Design.Store.list(); } catch (e) { designList = []; } if (!$('#sheet').hidden) buildPanel(); }
+  async function importText(t) { const d = Design.parse(t); await Design.Store.put(d); await loadDesigns(); return d; }
+  async function fetchDesigns() {
+    const r = await fetch('https://api.github.com/repos/menne1977/Neues-GPS-/contents/designs'); if (!r.ok) throw new Error(r.status === 404 ? 'Auf dem Server liegen noch keine Designs' : 'HTTP ' + r.status);
+    const files = (await r.json()).filter((x) => /\.tacho\.json$/.test(x.name)); let n = 0;
+    for (const f of files) { const t = await (await fetch(f.download_url)).text(); await importText(t); n++; }
+    return n;
+  }
+  function openCreator(name) {
+    closeSheet();
+    const go = (d) => Creator.open(d, { signHTML, toast }, async (dd) => { await loadDesigns(); if (cur && cur.name === dd.name) { cur = null; applyDesign(); } });
+    if (name) Design.Store.get(name).then(go); else go(null);
+  }
+  loadDesigns();
+
+  // ---------- Unterwegs, Navigation, andere Apps ----------
+  const NAVI = { google: 'Google Maps', sygic: 'Sygic', geo: 'einer anderen Karten-App', ask: 'Auswahl jedes Mal' };
+  function navigateTo(o) {
+    const a = Object.assign({ app: S.navi }, o);
+    if (AppCtl) return AppCtl.navigate(a).catch((e) => toast('Navigation: ' + ((e && e.message) || e), 5000));
+    const url = o.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}&travelmode=driving` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.query || '')}`;
+    window.open(url, '_blank');
+  }
+  const placesApi = { navigate: navigateTo, toast, refresh: (force) => Places.ensure(R.lat != null ? { lat: R.lat, lon: R.lon, heading: headingNow() } : null, S.fuelKm, !!force) };
+  const errMsg = (e) => (e && e.message) || String(e);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let appsCache = null;
+  async function appList() { if (!appsCache) appsCache = ((await AppCtl.apps()).list || []).sort((a, b) => a.l.localeCompare(b.l, 'de')); return appsCache; }
+  async function needAcc() {
+    if (!AppCtl) throw new Error('Das geht nur in der APK');
+    const r = await AppCtl.accessEnabled();
+    if (!r.enabled) throw new Error('Die Bedienungshilfe ist aus. Schalte unter Einstellungen, Apps „Tacho“ in den Android-Bedienungshilfen ein.');
+  }
+  const UI = (x) => needAcc().then(() => AppCtl.ui(x));
+  async function doSplit(a) {
+    if (!AppCtl) return 'Das geht nur in der APK.';
+    if (a.off) { try { await UI({ action: 'split' }); return 'Geteilter Bildschirm beendet.'; } catch (e) { return errMsg(e); } }
+    let pkg = S.splitApp.pkg, label = S.splitApp.label;
+    if (a.name) {
+      if (/navi|karte|maps/.test(a.name)) { pkg = S.navi === 'sygic' ? 'com.sygic.aura' : 'com.google.android.apps.maps'; label = NAVI[S.navi] || 'Navigation'; }
+      else { const q = a.name.toLowerCase(), l = (await appList()).find((x) => x.l.toLowerCase().includes(q)); if (!l) return 'Ich finde keine App namens ' + a.name + '.'; pkg = l.p; label = l.l; }
+    }
+    if (!pkg) { openSheet('apps'); return 'Wähle zuerst die App für den geteilten Bildschirm.'; }
+    let acc = false; try { acc = (await AppCtl.accessEnabled()).enabled; } catch (e) { /* egal */ }
+    if (acc) { await AppCtl.ui({ action: 'split' }).catch(() => {}); await sleep(1000); }
+    try { await AppCtl.adjacent({ pkg }); } catch (e) { return 'Die App ist nicht startbar: ' + errMsg(e); }
+    return acc ? 'Geteilter Bildschirm mit ' + label + '.' : label + ' wird daneben geöffnet. Falls nichts passiert, schalte die Bedienungshilfe ein oder teile den Bildschirm über die App-Übersicht.';
+  }
+  function appAct(a) {
+    if (!AppCtl && a.act !== 'navto') return Promise.resolve('Das geht nur in der APK.');
+    const ok = (t) => () => t, bad = (t) => (e) => (t ? t : errMsg(e));
+    switch (a.act) {
+      case 'openapp': return a.navi ? AppCtl.launch({ name: S.navi === 'sygic' ? 'sygic' : 'maps' }).then((r) => 'Ich öffne ' + r.label + '.').catch(bad('Keine Navigations-App gefunden.'))
+        : AppCtl.launch({ name: a.name }).then((r) => 'Ich öffne ' + r.label + '.').catch(bad('Ich finde keine App namens ' + a.name + '.'));
+      case 'sys': if (a.a === 'front') return AppCtl.front().then(ok('Zurück zum Tacho.')); if (a.a === 'home') return AppCtl.home().then(ok('Startbildschirm.')); return UI({ action: a.a }).then(ok('Okay.')).catch(bad());
+      case 'scroll': return UI({ action: a.down ? 'scroll_down' : 'scroll_up' }).then(ok('Gescrollt.')).catch(bad('Hier lässt sich nichts scrollen.'));
+      case 'click': return UI({ action: 'click', text: a.text }).then(ok('Getippt auf ' + a.text + '.')).catch((e) => (/Bedienungshilfe/.test(errMsg(e)) ? errMsg(e) : 'Ich finde „' + a.text + '“ nicht auf dem Bildschirm.'));
+      case 'type': return UI({ action: 'type', text: a.text }).then(ok('Geschrieben.')).catch((e) => (/Bedienungshilfe/.test(errMsg(e)) ? errMsg(e) : 'Kein Textfeld aktiv.'));
+      case 'closeapp': return UI({ action: 'closeapp', name: a.name }).then((r) => ((r && r.label) || 'App') + ' beendet.').catch(bad());
+      case 'media': return AppCtl.media({ key: a.key }).then(ok({ pause: 'Pause.', play: 'Weiter.', next: 'Nächster Titel.', prev: 'Vorheriger Titel.' }[a.key]));
+      case 'sysvol': return AppCtl.volume({ dir: a.up ? 'up' : 'down' }).then(ok(a.up ? 'Lauter.' : 'Leiser.'));
+      case 'split': return doSplit(a);
+      case 'navto': navigateTo({ query: a.q }); return Promise.resolve('Navigation nach ' + a.q + ' gestartet.');
+      default: return Promise.resolve('');
+    }
+  }
+  $('#bPlaces').onclick = () => Places.show('fuel', placesApi);
+  $('#bSplit').onclick = () => run({ act: 'split', name: '' });
+  $('#tiles').addEventListener('click', (e) => { const t = e.target.closest('.tile'); if (!t) return; if (t.dataset.id === 'tank') Places.show('fuel', placesApi); if (t.dataset.id === 'stau') Places.show('jam', placesApi); });
 
   // ---------- Sprachsteuerung ----------
   let wasListening = false;
@@ -439,7 +565,7 @@
     }
   }
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-  const SW_TEXT = { beep: 'Warnton', warnSpeak: 'Warnansage', announce: 'Limit-Ansage', replies: 'Sprachantworten', wake: 'Aktivierungswort', awake: 'Bildschirm anlassen', online: 'Online-Modus', preview: 'Limit-Vorschau', decimals: 'Nachkommastelle', wxOn: 'Wetter', satOn: 'Satelliten', bt: 'Bluetooth-Mikrofon' };
+  const SW_TEXT = { beep: 'Warnton', warnSpeak: 'Warnansage', announce: 'Limit-Ansage', replies: 'Sprachantworten', wake: 'Aktivierungswort', awake: 'Bildschirm anlassen', online: 'Online-Modus', preview: 'Limit-Vorschau', decimals: 'Nachkommastelle', wxOn: 'Wetter', satOn: 'Satelliten', bt: 'Bluetooth-Mikrofon', appCtl: 'Andere Apps per Sprache bedienen' };
 
   function run(a) {
     let msg = '';
@@ -474,6 +600,7 @@
         if (a.key === 'online' && a.on) { engine.lastTry = 0; fetchStuff(); }
         if (a.key === 'satOn') startSats();
         if (a.key === 'bt' && AppCtl) AppCtl.bt({ on: a.on }).catch(() => {});
+        if (a.key === 'appCtl' && a.on && AppCtl) AppCtl.accessEnabled().then((r) => { if (!r.enabled) { AppCtl.openAccessSettings(); toast('Schalte hier „Tacho“ ein. Auf neueren Androiden vorher in den App-Infos „Eingeschränkte Einstellungen zulassen“ wählen.', 9000); } }).catch(() => {});
         if (a.key === 'decimals') heroTarget = R.speed * fu();
         break;
       }
@@ -487,6 +614,13 @@
         break;
       case 'settings': if (a.open) openSheet(); else closeSheet(); msg = a.open ? 'Einstellungen.' : 'Geschlossen.'; break;
       case 'obd': if (a.on) { openSheet('obd'); msg = 'OBD: Adapter wählen und verbinden.'; } else { OBD.disconnect(); msg = 'OBD getrennt.'; } break;
+      case 'places': Places.show(a.tab, placesApi); msg = a.tab === 'fuel' ? 'Tankstellen in der Nähe. Antippen startet die Navigation.' : 'Autobahn-Meldungen.'; break;
+      case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
+      case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
+      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto':
+        if (!['sys', 'media', 'sysvol', 'openapp', 'navto'].includes(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
+        appAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e)));
+        break;
       default: return;
     }
     save(true); applyLook(); render(); if (!$('#sheet').hidden) buildPanel();
@@ -555,7 +689,24 @@
     h += det('cmd', 'Sprachbefehle und Test', `
       <div class="row"><input type="text" id="cmdIn" placeholder="Befehl eintippen, z. B. Thema Neon" style="max-width:none;width:100%"><button class="btn" data-do="cmdgo">▶</button></div>
       <ul class="cmd">${Cmd.HELP.map((x) => `<li>${x}</li>`).join('')}</ul>`);
+    h += det('designs', 'Tacho-Designs (eigene Tachos)', `
+      ${sel('dLand', 'Tacho quer', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
+      ${sel('dPort', 'Tacho hochkant', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
+      <button class="act pri" data-do="dnew">Eigenen Tacho erstellen</button>
+      <button class="act" data-do="dload">Design-Datei laden (.tacho.json)</button>
+      <button class="act" data-do="dserver">Designs vom Server holen</button>
+      ${designList.map((d) => `<div class="tl"><label>${Design.esc(d.name)}</label><button class="mv" style="width:auto;padding:0 8px" data-do="dedit" data-n="${Design.esc(d.name)}">Bearbeiten</button><button class="mv" style="width:auto;padding:0 8px" data-do="dexp" data-n="${Design.esc(d.name)}">Export</button><button class="mv" data-do="ddel" data-n="${Design.esc(d.name)}">✕</button></div>`).join('')}
+      <div class="info">Ein Design ist eine Datei. Du kannst sie laden, ohne die App neu zu bauen. Schicke mir Bilder mit Beschriftung, ich mache daraus Dateien, oder baue selbst im Creator.</div>`);
+    h += det('apps', 'Apps, Split-Bildschirm, Navigation', `
+      ${chk('appCtl', 'Andere Apps per Sprache bedienen', 'öffnen, schließen, zurück, tippen, scrollen, schreiben')}
+      <button class="act" data-do="accopen">Bedienungshilfe prüfen und öffnen</button>
+      <div class="row"><label>App für den geteilten Bildschirm<small>${S.splitApp.label ? Design.esc(S.splitApp.label) : 'noch keine gewählt'}</small></label><button class="mv" style="width:auto;padding:0 10px" data-do="appsload">Wählen</button></div>
+      <div id="applist" class="applist"></div>
+      ${sel('navi', 'Navigation für Tankstellen', [['google', 'Google Maps'], ['sygic', 'Sygic'], ['geo', 'Andere Karten-App'], ['ask', 'Jedes Mal fragen']])}
+      <div class="row"><label>Tankstellen-Umkreis (km)</label><input type="number" min="1" max="100" data-k="fuelKm" value="${S.fuelKm}" style="width:80px"></div>
+      <div class="info">Geteilter Bildschirm: Knopf ◫ oben oder „Split mit Navigation“. Mit eingeschalteter Bedienungshilfe teilt die App den Bildschirm selbst, sonst öffnet sie die Wunsch-App daneben.</div>`);
     h += det('reset', 'Zähler', `
+      <div class="row"><label>Gesamtkilometer<small>Zähler setzen, z. B. auf den Tachostand</small></label><input type="number" id="totalIn" value="${Math.round(S.total)}" style="width:110px"></div>
       <button class="act" data-do="rday">Tageskilometer auf null</button><button class="act" data-do="rtrip">Trip auf null</button><button class="act" data-do="rmax">Höchsttempo zurücksetzen</button><button class="act" data-do="rall">Alle Einstellungen zurücksetzen</button>`);
     h += `<div class="info">Quellen: OpenStreetMap-Mitwirkende (ODbL) für Straßen und Limits, Open-Meteo für Wetter.</div>`;
     $('#panel').innerHTML = h;
@@ -576,17 +727,27 @@
     } else if (t.dataset.tile) {
       const id = t.dataset.tile; if (t.checked) { if (!S.tiles.includes(id)) S.tiles.push(id); } else S.tiles = S.tiles.filter((x) => x !== id);
     } else if (t.dataset.ok) { S.obd[t.dataset.ok] = t.value; }
+    else if (t.id === 'totalIn') { S.total = Math.max(0, +t.value || 0); toast('Gesamtkilometer: ' + Math.round(S.total)); }
     else if (t.id === 'wakeWord') {
       const w = t.value.toLowerCase().replace(/[^a-zäöüß]/g, ''); if (w.length >= 3) { S.wakeWord = w; if (S.wake && Voice) Voice.setWake({ words: wakeWords() }).catch(() => {}); toast('Aktivierungswort: ' + w); } else toast('Mindestens 3 Buchstaben');
     } else return;
     save(true); applyLook(); render(); buildPanel();
   });
   $('#panel').addEventListener('click', (e) => {
-    const t = e.target.closest('[data-do],[data-mv],[data-accent]'); if (!t) return;
+    const t = e.target.closest('[data-do],[data-mv],[data-accent],[data-pkg]'); if (!t) return;
+    if (t.dataset.pkg) { S.splitApp = { label: t.dataset.l, pkg: t.dataset.pkg }; save(true); toast('Split-App: ' + t.dataset.l); return buildPanel('apps'); }
     if (t.dataset.accent) { S.accent = t.dataset.accent; save(true); applyLook(); render(); return buildPanel(); }
     if (t.dataset.mv) { const i = S.tiles.indexOf(t.dataset.mv), j = clamp(i + +t.dataset.d, 0, S.tiles.length - 1); S.tiles.splice(j, 0, S.tiles.splice(i, 1)[0]); save(true); render(); return buildPanel(); }
     const d = t.dataset.do;
     if (d === 'close') closeSheet();
+    if (d === 'dnew') openCreator(null);
+    if (d === 'dedit') openCreator(t.dataset.n);
+    if (d === 'dload') Creator.pickFile('.json,application/json').then(async (f) => { if (!f) return; try { const dd = await importText(await f.text()); toast('Design geladen: ' + dd.name); } catch (er) { toast('Fehler: ' + errMsg(er), 6000); } });
+    if (d === 'dserver') { toast('Hole Designs …', 6000); fetchDesigns().then((n) => toast(n ? n + ' Designs geladen' : 'Keine Designs auf dem Server', 4000)).catch((er) => toast('Server: ' + errMsg(er), 6000)); }
+    if (d === 'ddel' && confirm('Design „' + t.dataset.n + '“ löschen?')) { Design.Store.del(t.dataset.n).then(() => { if (S.dLand === t.dataset.n) S.dLand = ''; if (S.dPort === t.dataset.n) S.dPort = ''; save(true); cur = null; applyDesign(); loadDesigns(); }); }
+    if (d === 'dexp') Design.Store.get(t.dataset.n).then((dd) => { const text = JSON.stringify(dd), name = dd.name + '.tacho.json'; try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Gespeichert: ' + name); } catch (er) { navigator.clipboard && navigator.clipboard.writeText(text).then(() => toast('In die Zwischenablage kopiert')); } });
+    if (d === 'accopen') { if (!AppCtl) { toast('Nur in der APK'); return; } AppCtl.accessEnabled().then((r) => { if (r.enabled) toast('Bedienungshilfe ist an', 4000); else { AppCtl.openAccessSettings(); toast('Schalte hier „Tacho“ ein. Auf neueren Androiden vorher in den App-Infos „Eingeschränkte Einstellungen zulassen“ wählen.', 9000); } }); }
+    if (d === 'appsload') { if (!AppCtl) { toast('Nur in der APK'); return; } appList().then((l) => { const box = $('#applist'); box.innerHTML = l.map((a) => `<button class="approw ${S.splitApp.pkg === a.p ? 'on' : ''}" data-pkg="${Design.esc(a.p)}" data-l="${Design.esc(a.l)}">${Design.esc(a.l)}</button>`).join(''); }).catch((er) => toast(errMsg(er), 5000)); }
     if (d === 'cmdgo') { const v = $('#cmdIn').value; if (v) heard(v); }
     if (d === 'rday') run({ act: 'reset', what: 'day' });
     if (d === 'rtrip') run({ act: 'reset', what: 'trip' });
@@ -605,5 +766,5 @@
   if (S.wake) startWake().then((ok) => { if (!ok) { S.wake = false; paintMic(); } });
   if (S.bt && AppCtl) AppCtl.bt({ on: true }).catch(() => {});
   paintMic();
-  window.__R = R; window.__S = () => S; window.__engine = engine; window.__onPos = onPos;
+  window.__import = importText; window.__R = R; window.__S = () => S; window.__engine = engine; window.__onPos = onPos;
 })();

@@ -75,6 +75,41 @@
     // --- Hilfe ---
     if (/^(hilfe|befehle|was kann ich sagen|was kannst du)/.test(s)) return { act: 'help' };
 
+    // --- Unterwegs: Tankstellen, Stau ---
+    if (/(tankstelle|tanken|sprit)/.test(s) && !/(tank(füllung)?\s*(anzeigen|ausblenden)|verstecke|blende)/.test(s)) return { act: 'places', tab: 'fuel' };
+    if (/\b(stau|staus|verkehr|autobahn ?meldung\w*|verkehrsmeldung\w*)\b/.test(s) && !/(verstecke|ausblenden|entferne|blende)/.test(s)) return { act: 'places', tab: 'jam' };
+
+    // --- Gesamtkilometer setzen ---
+    if ((m = s.match(/gesamt\w*\s*(setzen|stellen)?\s*(auf|zu)\s*(\d[\d. ]*)/))) return { act: 'settotal', n: parseInt(m[3].replace(/[. ]/g, ''), 10) };
+
+    // --- Navigation ---
+    if ((m = s.match(/^(navi|navigation|navigationsapp|karten ?app)\s*(auf|ist|mit)?\s*(google|google maps|sygic|andere|fragen|jedes mal)$/))) return { act: 'navi', id: /sygic/.test(m[3]) ? 'sygic' : /google/.test(m[3]) ? 'google' : /andere/.test(m[3]) ? 'geo' : 'ask' };
+    if ((m = s.match(/^(navigiere|navigation|route|fahre|bring mich|leite mich)\s*(mich )?(nach|zu|zum|zur)\s+(.+)$/))) return { act: 'navto', q: m[4] };
+
+    // --- Andere Apps steuern ---
+    if (/^(zurück zum tacho|tacho (zeigen|nach vorne|vorne)|zeige (den )?tacho|zurück zur app)$/.test(s)) return { act: 'sys', a: 'front' };
+    if (/^(zurück|geh zurück|gehe zurück)$/.test(s)) return { act: 'sys', a: 'back' };
+    if (/^(startbildschirm|home|nach hause|home ?screen|zum startbildschirm)$/.test(s)) return { act: 'sys', a: 'home' };
+    if (/^(app ?übersicht|letzte apps|zuletzt benutzt)$/.test(s)) return { act: 'sys', a: 'recents' };
+    if (/^(benachrichtigungen|mitteilungen)( öffnen| zeigen)?$/.test(s)) return { act: 'sys', a: 'notifications' };
+    if (/(scroll\w*|blättere|wische)\s*(nach )?(unten|runter|weiter)/.test(s)) return { act: 'scroll', down: true };
+    if (/(scroll\w*|blättere|wische)\s*(nach )?(oben|hoch)/.test(s)) return { act: 'scroll', down: false };
+    if ((m = s.match(/^(tippe|klicke|klick|drücke|drück|wähle|auswählen)\s*(auf|den|die|das)?\s*(.+)$/)) && !/zeige|ausblenden/.test(s)) return { act: 'click', text: m[3] };
+    if ((m = s.match(/^(schreibe|schreib|tippe ein|diktiere|gib ein)\s+(.+)$/))) return { act: 'type', text: m[2] };
+    if (/^(musik |medien )?(pause|pausieren|anhalten|stopp)( musik)?$/.test(s)) return { act: 'media', key: 'pause' };
+    if (/^(musik |medien )?(weiter|fortsetzen|abspielen|play|spiele|starte musik|musik an)$/.test(s)) return { act: 'media', key: 'play' };
+    if (/(nächster|nächstes|nächsten) (titel|song|lied)|überspringen|skip/.test(s)) return { act: 'media', key: 'next' };
+    if (/(vorheriger|vorheriges|vorherigen|letzter|letzten) (titel|song|lied)/.test(s)) return { act: 'media', key: 'prev' };
+    if (/(musik|medien).*(lauter|leiser)|^(lauter|leiser)$/.test(s)) return { act: 'sysvol', up: /lauter/.test(s) };
+    if (/(split|geteilt|teilen|teile)/.test(s) && /(beend|aus|schließ|nicht mehr|zurück)/.test(s)) return { act: 'split', off: true };
+    if ((m = s.match(/(split\w*|geteilter? bildschirm|bildschirm teilen|teile (den )?bildschirm)(?: mit| und| für)?\s*(.*)$/))) return { act: 'split', name: (m[3] || '').replace(/^(der |die |dem |den |das |einer |mit )+/, '').trim() };
+    if (/^(schließe|schließen|beende|beenden|kill)\s*(die |diese )?(aktuelle )?app$|^app (schließen|beenden)$/.test(s)) return { act: 'closeapp', name: '' };
+    if ((m = s.match(/^(schließe|schließen|beende|beenden)\s+(die |den |das )?(.+)$/)) && !/(einstellung|menü|optionen|tacho)/.test(m[3])) return { act: 'closeapp', name: m[3].replace(/ app$/, '') };
+    if ((m = s.match(/^(öffne|öffnen|starte|starten|start|mach|mache|gehe zu|geh zu|zeige)\s+(die |den |das |mir )*(.+?)( auf)?$/)) && !/(einstellung|menü|optionen|tankstelle|stau|höhe|kompass|tempo|alle|nur|trip|tour|wetter|uhr|beschleunigung|g-kraft|fahrzeit|durchschnitt|steigung|drehzahl|satelliten|gesamt|tages|höchst|spielraum|wind|genauigkeit|kühl|öl|gas|last|spannung|tank|verbrauch|obd)/.test(m[3])) {
+      if (/^(navi|navigation|karte|karten|maps|google maps)$/.test(m[3])) return { act: 'openapp', name: '', navi: true };
+      return { act: 'openapp', name: m[3] };
+    }
+
     // --- Abfragen ---
     if (/(wie schnell darf|welches (tempo)?limit|tempolimit|geschwindigkeitsbegrenzung|was ist erlaubt|erlaubt|limit)\b/.test(s) && !/(setz|stell|größer|kleiner|ansag|warn)/.test(s)) return { act: 'ask', what: 'limit' };
     if (/wie schnell (fahre|bin) ich|mein tempo|aktuelles tempo|geschwindigkeit$/.test(s)) return { act: 'ask', what: 'speed' };
@@ -111,7 +146,7 @@
       ['replies', /sprachantwort|antworten/], ['wake', /aktivierungswort|immer zuhören|dauerhaft zuhören|dauerlauschen|mikrofon dauerhaft/],
       ['awake', /bildschirm (anlassen|anlass|an lassen|anbleiben)|display anlassen|nicht ausschalten/],
       ['online', /\bonline\b|internet/], ['preview', /vorschau|nächstes limit|limit voraus/], ['decimals', /nachkomma/],
-      ['wxOn', /wetter online|wetterdaten/], ['satOn', /satelliten abfragen|satellitenanzeige/], ['bt', /bluetooth/]
+      ['appCtl', /andere apps|apps bedienen|appsteuerung|app steuerung|apps steuern/], ['wxOn', /wetter online|wetterdaten/], ['satOn', /satelliten abfragen|satellitenanzeige/], ['bt', /bluetooth/]
     ];
     for (const [k, re] of sw) if (re.test(s) && on(s) !== null) return { act: 'toggle', key: k, on: on(s) };
 
@@ -128,8 +163,7 @@
       if (/leiser|niedriger/.test(s)) return { act: 'volume', delta: -15 };
       const n = num(s); if (n != null) return { act: 'volume', n: Math.min(100, n) };
     }
-    if (/^(lauter|leiser)$/.test(s)) return { act: 'volume', delta: s === 'lauter' ? 15 : -15 };
-
+    
     // --- Layout ---
     if (/(querformat|quer\b|waagerecht|waagrecht|landscape)/.test(s) && !/spalte/.test(s)) return { act: 'layout', id: 'land' };
     if (/(hochformat|hochkant|senkrecht|portrait|aufrecht)/.test(s)) return { act: 'layout', id: 'port' };
@@ -177,7 +211,9 @@
     'Spalten drei', 'Schrift größer', 'Kacheln kleiner', 'Fahrzeug Motorrad / Auto / Gespann / Lkw',
     'Toleranz fünf', 'Warnton an / aus', 'Limit ansagen an / aus', 'Meilen / Kilometer pro Stunde',
     'Tageskilometer zurücksetzen', 'Höchstgeschwindigkeit zurücksetzen', 'Aktivierungswort ändern auf Cockpit',
-    'Sprachantworten aus', 'Lautstärke 60', 'Online aus', 'Einstellungen'
+    'Sprachantworten aus', 'Lautstärke 60', 'Online aus', 'Einstellungen',
+    'Öffne Spotify', 'Schließe YouTube', 'Zurück', 'Startbildschirm', 'Scrolle nach unten', 'Tippe auf Suche', 'Schreibe Hallo', 'Musik Pause', 'Nächster Titel', 'Lauter',
+    'Navigiere nach Köln Hauptbahnhof', 'Tankstellen', 'Stau', 'Split mit Navigation', 'Split beenden', 'Gesamtkilometer auf 12345', 'Navi Sygic'
   ];
 
   const api = { parse, num, tileOf, HELP, COLORS, THEMES };

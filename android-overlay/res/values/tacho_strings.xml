@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tacho_acc_desc">Damit der Tacho auf deinen Sprachbefehl hin andere Apps bedienen oder beenden kann (zurück, tippen, scrollen, App beenden, Bildschirm teilen). Es wird nichts gespeichert oder übertragen.</string>
+</resources>

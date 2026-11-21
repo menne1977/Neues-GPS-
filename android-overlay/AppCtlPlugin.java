@@ -20,7 +20,7 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.util.List;
 
-/** Navigation, Bluetooth-Headset-Mikrofon, Hintergrunddienst, Medientasten, Lautstärke. */
+/** Andere Apps öffnen, Medientasten, Lautstärke, Navigation, Bluetooth-Headset-Mikrofon, Hintergrunddienst. */
 @CapacitorPlugin(name = "AppCtl", permissions = {
         @Permission(alias = "bt", strings = {"android.permission.BLUETOOTH_CONNECT"})
 })
@@ -72,6 +72,54 @@ public class AppCtlPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Start fehlgeschlagen: " + e.getMessage());
         }
+    }
+
+    // ---------- Bedienungshilfe: andere Apps bedienen und beenden ----------
+    @PluginMethod
+    public void accessEnabled(PluginCall call) {
+        JSObject o = new JSObject();
+        o.put("enabled", TachoAccessService.inst != null);
+        call.resolve(o);
+    }
+
+    @PluginMethod
+    public void openAccessSettings(PluginCall call) {
+        startNew(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void ui(PluginCall call) {
+        final TachoAccessService s = TachoAccessService.inst;
+        if (s == null) { call.reject("Bedienungshilfe ist aus"); return; }
+        String a = call.getString("action", "");
+        String t = call.getString("text", "");
+        boolean ok;
+        switch (a) {
+            case "back": case "home": case "recents": case "notifications": case "split": ok = s.global(a); break;
+            case "click": ok = s.clickText(t, false); break;
+            case "scroll_down": ok = s.scroll(true); break;
+            case "scroll_up": ok = s.scroll(false); break;
+            case "type": ok = s.type(t); break;
+            case "closeapp": {
+                String name = call.getString("name", "");
+                PackageManager pm = getContext().getPackageManager();
+                String pkg;
+                if (name.isEmpty()) pkg = TachoAccessService.fgPkg;
+                else { ResolveInfo ri = findApp(name); pkg = ri == null ? "" : ri.activityInfo.packageName; }
+                if (pkg == null || pkg.isEmpty()) { call.reject("keine passende App"); return; }
+                String label = pkg;
+                try { label = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0))); } catch (Exception ignored) { }
+                final String lb = label;
+                s.forceStop(pkg, (done, msg) -> {
+                    if (done) { JSObject o = new JSObject(); o.put("label", lb); call.resolve(o); }
+                    else call.reject(msg);
+                });
+                return;
+            }
+            default: call.reject("Unbekannte Aktion"); return;
+        }
+        if (ok) call.resolve(); else call.reject("nicht gefunden");
     }
 
     @PluginMethod
@@ -141,17 +189,33 @@ public class AppCtlPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Navigation starten: {lat, lon, name} oder {query}; app = google | sygic | geo | ask */
     @PluginMethod
     public void navigate(PluginCall call) {
         String q = call.getString("query", "");
+        String app = call.getString("app", "google");
+        String name = call.getString("name", "Ziel");
+        boolean hasPos = call.hasOption("lat") && call.hasOption("lon");
+        double lat = call.getDouble("lat", 0.0), lon = call.getDouble("lon", 0.0);
         try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(q)));
-            i.setPackage("com.google.android.apps.maps");
+            Intent i;
+            if ("sygic".equals(app) && hasPos) {
+                i = new Intent(Intent.ACTION_VIEW, Uri.parse("com.sygic.aura://coordinate|" + lon + "|" + lat + "|drive"));
+            } else if ("google".equals(app)) {
+                String dest = hasPos ? (lat + "," + lon) : Uri.encode(q);
+                i = new Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + dest + "&mode=d"));
+                i.setPackage("com.google.android.apps.maps");
+            } else {
+                String geo = hasPos ? ("geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(" + Uri.encode(name) + ")") : ("geo:0,0?q=" + Uri.encode(q));
+                i = new Intent(Intent.ACTION_VIEW, Uri.parse(geo));
+                if ("ask".equals(app)) i = Intent.createChooser(i, "Navigation mit");
+            }
             startNew(i);
             call.resolve();
         } catch (Exception e) {
             try {
-                startNew(new Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(q))));
+                String geo = hasPos ? ("geo:" + lat + "," + lon + "?q=" + lat + "," + lon) : ("geo:0,0?q=" + Uri.encode(q));
+                startNew(new Intent(Intent.ACTION_VIEW, Uri.parse(geo)));
                 call.resolve();
             } catch (Exception e2) { call.reject("Keine Navigations-App gefunden"); }
         }
