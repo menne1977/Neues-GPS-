@@ -85,3 +85,34 @@ const out = (d) => {
   );
   out(d);
 })();
+
+// 4) Renn-Cockpit quer: Drehzahlmesser links mit Schaltleiste, riesiges Tempo, Werte-Kacheln, Tempo-Schild
+(() => {
+  const d = D.blank('Renn Cockpit'); d.aspect = 2.1667; d.bg.color = '#02030a';
+  const gh = 82, gw = gh / 2.1667, gx = 2, gy = 14;
+  d.els.push(
+    el('bar', { x: 22, y: 3, w: 56, h: 5.5, src: 'rpm', min: 0, max: 15000, color: '#ff4a1c', bg: '#12182a', radius: 30, segs: 24, stc: false, limitMark: false }),
+    el('rect', { x: gx - 0.5, y: gy - 1, w: gw + 1, h: gh + 2, color: '#050a18', radius: 50, border: 0.5, borderColor: '#1d3a8a' }),
+    el('arc', { x: gx, y: gy, w: gw, h: gh, src: 'rpm', min: 0, max: 15000, a0: -130, a1: 110, thick: 4, color: '#2f8bff', bg: '#0f1a33', stc: false }),
+    el('dial', { x: gx + 1.8, y: gy + 4, w: gw - 3.6, h: gh - 8, min: 0, max: 15, step: 1, minor: 4, a0: -130, a1: 110, color: '#dbe7ff', size: 3.4, lim: false }),
+    el('needle', { x: gx, y: gy, w: gw, h: gh, src: 'rpm', min: 0, max: 15000, a0: -130, a1: 110, len: 56, width: 1.2, color: '#ffffff' }),
+    el('value', { x: gx + 5, y: gy + 38, w: gw - 10, h: 15, src: 'rpm', size: 11, weight: 800, font: 'condensed', color: '#ffffff' }),
+    el('text', { x: gx + 8, y: gy + 54, w: gw - 16, h: 5, text: 'U/MIN', size: 2.8, color: '#7f93bd', weight: 700 }),
+    el('value', { x: gx + 8, y: gy + 62, w: gw - 16, h: 9, src: 'dirname', size: 6, color: '#7f93bd', weight: 700 }),
+    el('value', { x: 44, y: 11, w: 36, h: 42, src: 'speed', size: 40, weight: 900, font: 'condensed', stc: true, align: 'c' }),
+    el('text', { x: 62, y: 49, w: 18, h: 6, text: 'KM/H', size: 3.6, color: '#7f93bd', weight: 700, align: 'r' }),
+    el('sign', { x: 82, y: 11, w: 16, h: 38 })
+  );
+  const box = (x, y, label, src, unit, dec, w) => {
+    w = w || 16;
+    d.els.push(
+      el('rect', { x, y, w, h: 19, color: '#071022', radius: 8, border: 0.5, borderColor: '#1d3a8a' }),
+      el('text', { x, y: y + 1.5, w, h: 5, text: label, size: 3, color: '#7f93bd', weight: 700 }),
+      el('value', { x, y: y + 6.5, w, h: 11, src, unit, dec: dec || 0, size: 8, weight: 800, font: 'condensed' })
+    );
+  };
+  box(44, 57, 'KÜHLMITTEL', 'cool', '°C'); box(63, 57, 'ÖL', 'oil', '°C'); box(82, 57, 'SPANNUNG', 'volt', 'V', 1);
+  box(44, 78, 'TRIP', 'trip', 'km', 1, 22); box(68, 78, 'GESAMT', 'total', 'km', 0, 22);
+  d.els.push(el('value', { x: 2, y: 1.5, w: 17, h: 9, src: 'clock', size: 6, weight: 800, font: 'condensed', align: 'l', color: '#9fb4e0' }));
+  out(d);
+})();
