@@ -102,6 +102,16 @@ public class TachoAccessService extends AccessibilityService {
     }
 
     // App beenden: App-Info öffnen, „Beenden erzwingen“ drücken und bestätigen
+    /** Tacho wieder nach vorn holen, damit er nach dem Schließen anderer Apps sichtbar bleibt. */
+    void backToTacho() {
+        try {
+            Intent back = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (back == null) return;
+            back.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(back);
+        } catch (Exception ignored) { /* egal */ }
+    }
+
     void forceStop(String pkg, Done cb) {
         if (pkg == null || pkg.isEmpty() || pkg.equals(getPackageName())) { cb.done(false, "keine passende App"); return; }
         Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
@@ -120,19 +130,19 @@ public class TachoAccessService extends AccessibilityService {
                 AccessibilityNodeInfo n = null;
                 for (String s : FS) { n = findNode(root, s, false); if (n != null) break; }
                 if (n != null) {
-                    if (click(n)) { step(1, 0, cb); } else { performGlobalAction(GLOBAL_ACTION_HOME); cb.done(false, "App läuft nicht"); }
+                    if (click(n)) { step(1, 0, cb); } else { backToTacho(); cb.done(false, "App läuft nicht"); }
                     return;
                 }
             } else {
                 for (String s : OK) {
                     AccessibilityNodeInfo ok = findNode(root, s, true);
                     if (ok != null && click(ok)) {
-                        h.postDelayed(() -> { performGlobalAction(GLOBAL_ACTION_HOME); cb.done(true, ""); }, 500);
+                        h.postDelayed(() -> { backToTacho(); cb.done(true, ""); }, 700);
                         return;
                     }
                 }
             }
-            if (tries > 14) { performGlobalAction(GLOBAL_ACTION_HOME); cb.done(false, phase == 0 ? "Beenden-Knopf nicht gefunden" : "Bestätigung nicht gefunden"); }
+            if (tries > 14) { backToTacho(); cb.done(false, phase == 0 ? "Beenden-Knopf nicht gefunden" : "Bestätigung nicht gefunden"); }
             else step(phase, tries + 1, cb);
         }, 450);
     }
