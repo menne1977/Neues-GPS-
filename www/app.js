@@ -23,7 +23,7 @@
     theme: 'nacht', accent: '#3ddc97', layout: 'auto', colsP: 2, colsL: 2, hero: 1, tsize: 1,
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
-    ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '',
+    ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '', dSplit: '', scr: {},
     veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(), obd: { type: 'bt', addr: '', host: '192.168.0.10', port: 35000 },
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
@@ -72,6 +72,20 @@
   const WX = { 0: 'Sonne', 1: 'meist sonnig', 2: 'wolkig', 3: 'bedeckt', 45: 'Nebel', 48: 'Nebel', 51: 'Niesel', 53: 'Niesel', 55: 'Niesel', 56: 'Eisregen', 57: 'Eisregen', 61: 'Regen', 63: 'Regen', 65: 'Starkregen', 66: 'Eisregen', 67: 'Eisregen', 71: 'Schnee', 73: 'Schnee', 75: 'Starkschnee', 77: 'Schnee', 80: 'Schauer', 81: 'Schauer', 82: 'Starkschauer', 85: 'Schneeschauer', 86: 'Schneeschauer', 95: 'Gewitter', 96: 'Gewitter', 99: 'Gewitter' };
 
   // ---------- Layout, Thema ----------
+  // Geteilter Bildschirm: das Fenster ist deutlich kleiner als der Bildschirm
+  function isSplit() {
+    const sw = Math.max(screen.width, screen.height), sh = Math.min(screen.width, screen.height);
+    const w = innerWidth, h = innerHeight;
+    return (w * h) < 0.62 * sw * sh && Math.max(w, h) < 0.8 * sw;
+  }
+  function scrKind() { return isSplit() ? (innerWidth > innerHeight ? 'splitL' : 'splitP') : (innerWidth > innerHeight ? 'land' : 'port'); }
+  function measureScr() {
+    if (!innerWidth || !innerHeight) return;
+    const k = scrKind(), dpr = devicePixelRatio || 1;
+    const v = { a: +(innerWidth / innerHeight).toFixed(4), w: Math.round(innerWidth * dpr), h: Math.round(innerHeight * dpr), t: Date.now() };
+    const o = S.scr && S.scr[k];
+    if (!o || Math.abs(o.a - v.a) > 0.005 || o.w !== v.w) { S.scr = Object.assign({}, S.scr, { [k]: v }); save(true); }
+  }
   function isLand() { return S.layout === 'auto' ? innerWidth > innerHeight : S.layout === 'land'; }
   function applyLook() {
     const b = document.body, st = document.documentElement.style;
@@ -88,7 +102,8 @@
       else await screen.orientation.lock(S.layout === 'land' ? 'landscape' : 'portrait');
     } catch (e) { /* nicht überall erlaubt, das Layout folgt trotzdem */ }
   }
-  addEventListener('resize', () => { applyLook(); render(); });
+  addEventListener('resize', () => { applyLook(); render(); clearTimeout(R.msT); R.msT = setTimeout(measureScr, 700); });
+  setTimeout(measureScr, 1500);
 
   let wl = null;
   async function applyAwake() {
@@ -459,13 +474,14 @@
   function designApi() {
     return { get: getVal, state: R.state, limit: R.limit, limitKmh: limitKmh(), fu: fu(), road: R.road, next: S.preview ? R.next : null, limitObj: R.limit, signHTML };
   }
+  const wantDesign = () => (isSplit() && S.dSplit) ? S.dSplit : (isLand() ? S.dLand : S.dPort);
   async function applyDesign() {
-    const name = isLand() ? S.dLand : S.dPort, b = document.body;
+    const name = wantDesign(), b = document.body;
     if (!name) { if (cur) { cur = null; $('#custom').innerHTML = ''; } b.classList.remove('cd'); return; }
     if (cur && cur.name === name) { cur.m.layout(); return; }
     let d = null; try { d = await Design.Store.get(name); } catch (e) { /* kein Speicher */ }
     if (!d) { b.classList.remove('cd'); cur = null; return; }
-    if ((isLand() ? S.dLand : S.dPort) !== name) return;
+    if (wantDesign() !== name) return;
     b.classList.add('cd'); cur = { name, d, m: Design.mount($('#custom'), d, {}) };
   }
   let designList = [];
@@ -476,11 +492,22 @@
     const o = Object.assign({}, Guide.DEF, S.aiOpt || {});
     const name = (k) => (Design.SRC.find((s) => s[0] === k) || [k, k])[1];
     const cb = (grp, k, l, on) => `<label class="aic"><input type="checkbox" data-grp="${grp}" value="${k}" ${on ? 'checked' : ''}> ${Design.esc(l)}</label>`;
-    const ASP = [['2.1667', 'Handy quer 19,5:9'], ['2.2222', 'Handy quer 20:9'], ['2', 'Handy quer 18:9'], ['1.7778', 'Tablet quer 16:9'], ['1.3333', '4:3'], ['0.4615', 'Handy hochkant 9:19,5'], ['0.5625', 'hochkant 9:16']];
+    measureScr();
+    const sc = S.scr || {}, g = (k, est, px) => sc[k] ? [String(sc[k].a), sc[k].w + '×' + sc[k].h, 'gemessen'] : [String(est), px, 'geschätzt'];
+    const M = { land: g('land', 2.12, '2580×1220'), port: g('port', 0.47, '1220×2600'), splitP: g('splitP', 0.95, '1220×1280'), splitL: g('splitL', 1.06, '1290×1220') };
+    const ASP = [
+      [M.land[0], `Mein Handy quer (${M.land[1]}, ${M.land[2]})`, M.land[1]],
+      [M.port[0], `Mein Handy hochkant (${M.port[1]}, ${M.port[2]})`, M.port[1]],
+      [M.splitP[0], `Geteilter Bildschirm, Handy hochkant: obere oder untere Hälfte (${M.splitP[1]}, ${M.splitP[2]})`, M.splitP[1]],
+      [M.splitL[0], `Geteilter Bildschirm, Handy quer: linke oder rechte Hälfte (${M.splitL[1]}, ${M.splitL[2]})`, M.splitL[1]],
+      ['2.2230', 'Ganzer Bildschirm 20:9 ohne Leisten (2712×1220)', '2712×1220'],
+      ['1.7778', 'Tablet quer 16:9', ''], ['1.3333', '4:3', '']];
+    if (!ASP.some((x) => x[0] === o.aspect)) o.aspect = ASP[0][0];
     const ov = document.createElement('div'); ov.className = 'guide';
     ov.innerHTML = `<div class="gbox aibox"><h3>KI-Text erstellen</h3>
       <p class="ais">Wähle aus, was die KI einbauen soll. Nur ausgewählte Werte kommen in den Text, dadurch macht die KI weniger Fehler.</p>
-      <h4>Format</h4><select id="aiAsp">${ASP.map(([v, l]) => `<option value="${v}" ${o.aspect === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <h4>Format</h4><select id="aiAsp">${ASP.map(([v, l, px], i) => `<option value="${v}" data-px="${px}" data-i="${i}" ${o.aspect === v && (o.fmt == null || o.fmt === i) ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <p class="ais">Tipp: Öffne die App einmal quer, hochkant und im geteilten Bildschirm, dann misst sie die genaue Größe.</p>
       <h4>Aussehen</h4>
       <label class="aic"><input type="radio" name="ailook" value="real" ${o.look === 'real' ? 'checked' : ''}> So echt wie möglich (Verläufe, Chrom, Leuchten)</label>
       <label class="aic"><input type="radio" name="ailook" value="flat" ${o.look === 'flat' ? 'checked' : ''}> Schlicht und klar</label>
@@ -493,7 +520,8 @@
       <textarea id="aiOut" readonly style="display:none;height:35vh;margin-top:8px"></textarea></div>`;
     const read = () => {
       const q = (s) => [...ov.querySelectorAll(s)];
-      const r = { aspect: ov.querySelector('#aiAsp').value, look: (ov.querySelector('input[name=ailook]:checked') || {}).value || 'real',
+      const opt = ov.querySelector('#aiAsp').selectedOptions[0];
+      const r = { aspect: opt.value, px: opt.dataset.px, fmt: +opt.dataset.i, split: +opt.dataset.i === 2 || +opt.dataset.i === 3, look: (ov.querySelector('input[name=ailook]:checked') || {}).value || 'real',
         srcs: q('input[data-grp=src]:checked').map((x) => x.value), parts: q('input[data-grp=part]:checked').map((x) => x.value),
         colors: ov.querySelector('#aiCol').value.trim(), notes: ov.querySelector('#aiNotes').value.trim() };
       r.orient = +r.aspect < 1 ? 'port' : 'land';
@@ -831,6 +859,7 @@
       <ul class="cmd">${Cmd.HELP.map((x) => `<li>${x}</li>`).join('')}</ul>`);
     h += det('designs', 'Tacho-Designs (eigene Tachos)', () => `
       ${sel('dLand', 'Tacho quer', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
+      ${sel('dSplit', 'Tacho im geteilten Bildschirm', [['', 'wie quer/hochkant']].concat(designList.map((d) => [d.name, d.name])))}
       ${sel('dPort', 'Tacho hochkant', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       <button class="act pri" data-do="dnew">Eigenen Tacho erstellen</button>
       <button class="act" data-do="gguide">Anleitung</button>
@@ -896,7 +925,7 @@
     if (d === 'dedit') openCreator(t.dataset.n);
     if (d === 'dload') Creator.pickFile('.json,application/json').then(async (f) => { if (!f) return; try { const dd = await importText(await f.text()); toast('Design geladen: ' + dd.name); } catch (er) { toast('Fehler: ' + errMsg(er), 6000); } });
     if (d === 'dserver') { toast('Hole Designs …', 6000); fetchDesigns().then((n) => toast(n ? n + ' Designs geladen' : 'Keine Designs auf dem Server', 4000)).catch((er) => toast('Server: ' + errMsg(er), 6000)); }
-    if (d === 'ddel' && confirm('Design „' + t.dataset.n + '“ löschen?')) { Design.Store.del(t.dataset.n).then(() => { if (S.dLand === t.dataset.n) S.dLand = ''; if (S.dPort === t.dataset.n) S.dPort = ''; save(true); cur = null; applyDesign(); loadDesigns(); }); }
+    if (d === 'ddel' && confirm('Design „' + t.dataset.n + '“ löschen?')) { Design.Store.del(t.dataset.n).then(() => { if (S.dLand === t.dataset.n) S.dLand = ''; if (S.dSplit === t.dataset.n) S.dSplit = ''; if (S.dPort === t.dataset.n) S.dPort = ''; save(true); cur = null; applyDesign(); loadDesigns(); }); }
     if (d === 'dexp') Design.Store.get(t.dataset.n).then((dd) => { const text = JSON.stringify(dd), name = dd.name + '.tacho.json'; try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Gespeichert: ' + name); } catch (er) { navigator.clipboard && navigator.clipboard.writeText(text).then(() => toast('In die Zwischenablage kopiert')); } });
     if (d === 'accopen') { if (!AppCtl) { toast('Nur in der APK'); return; } AppCtl.accessEnabled().then((r) => { if (r.enabled) toast('Bedienungshilfe ist an', 4000); else { AppCtl.openAccessSettings(); toast('Schalte hier „Tacho“ ein. Auf neueren Androiden vorher in den App-Infos „Eingeschränkte Einstellungen zulassen“ wählen.', 9000); } }); }
     if (d === 'appsload') { if (!AppCtl) { toast('Nur in der APK'); return; } appList().then((l) => { const box = $('#applist'); box.innerHTML = l.map((a) => `<button class="approw ${S.splitApp.pkg === a.p ? 'on' : ''}" data-pkg="${Design.esc(a.p)}" data-l="${Design.esc(a.l)}">${Design.esc(a.l)}</button>`).join(''); }).catch((er) => toast(errMsg(er), 5000)); }
