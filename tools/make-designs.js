@@ -215,3 +215,51 @@ const out = (d) => {
   );
   out(d);
 })();
+
+// 7) HUD Hochkant geteilt: Vorlage nach KI-Bild (blaue HUD-Optik), Fläche 0.4977 (1218x2447 px, obere/untere Hälfte)
+(() => {
+  const d = D.blank('HUD Hochkant Split'); d.aspect = 0.4977; d.orient = 'port'; d.bg.color = '#02060f';
+  d.bg.grad = 'radial-gradient(ellipse at 50% 30%,#0b2a5a 0%,#04102a 55%,#02060f 100%)';
+  const CY = '#38d5ff', GL = '#1e8bff';
+  // Rahmen und Kopf
+  d.els.push(
+    el('rect', { x: 1.5, y: 1.5, w: 97, h: 97, grad: '#0a1a33,#030812', gang: 180, radius: 6, border: 0.5, bgrad: CY + ',' + GL + ',' + CY, bmode: 'linear', bang: 160, rglow: '#1e8bff55', rgs: 1.2 }),
+    el('text', { x: 5, y: 3.5, w: 60, h: 4, text: 'HUD · TACHO', size: 2.4, color: CY, weight: 800, font: 'mono' }),
+    el('value', { x: 60, y: 3.2, w: 35, h: 4.4, src: 'clock', size: 2.8, color: '#dff6ff', weight: 800, font: 'mono', align: 'r', glow: CY, gs: 0.6 }),
+    el('road', { x: 5, y: 8, w: 62, h: 4, size: 3.2, color: '#ffffff', weight: 800, align: 'l' }),
+    el('sign', { x: 72, y: 6.5, w: 22, h: 9.5 })
+  );
+  // Globus-Ersatz: Bogen mit Punktreihen, dann Tempo-Anzeige
+  d.els.push(
+    el('rect', { x: 14, y: 17, w: 72, h: 33.5, shape: 'circle', rgrad: '#1d5bd0,#071a44,#02060f', color: '#071a44', border: 0.9, bgrad: CY + ',' + GL + ',' + CY, bmode: 'conic', rglow: '#2b9bff88', rgs: 2 }),
+    el('arc', { x: 16, y: 19, w: 68, h: 29.5, src: 'kmh', min: 0, max: 240, a0: -130, a1: 130, thick: 3.5, grad: '#38d5ff,#3cff9a,#ffd23c,#ff2b1c', bg: '#0b2140', glow: CY, gs: 0.9, dim: 0.18 }),
+    el('needle', { x: 16, y: 19, w: 68, h: 29.5, src: 'kmh', min: 0, max: 240, a0: -130, a1: 130, len: 84, width: 1.1, tail: 8, color: '#ffffff', glow: CY, gs: 0.8 }),
+    el('value', { x: 22, y: 32, w: 56, h: 11, src: 'speed', size: 9.5, weight: 900, font: 'condensed', color: '#ffffff', tgrad: '#ffffff,#9fe9ff', glow: CY, gs: 0.9, align: 'c', shadow: true }),
+    el('text', { x: 30, y: 44, w: 40, h: 3, text: 'KM/H', size: 2.4, color: '#7fd8ff', weight: 700, align: 'c' })
+  );
+  // Linke Spalte: Balken-Reihe wie im Bild
+  const bar = (y, lab, src, mx) => {
+    d.els.push(
+      el('text', { x: 4, y, w: 40, h: 2.8, text: lab, size: 2.2, color: '#7fd8ff', weight: 700, font: 'mono' }),
+      el('bar', { x: 4, y: y + 3.2, w: 92, h: 2.2, src, min: 0, max: mx, color: CY, grad: '#1e8bff,#38d5ff,#dffaff', bg: '#0b2140', radius: 40, segs: 28, stc: false, glow: CY, gs: 0.4 })
+    );
+  };
+  bar(52, 'TEMPO', 'speed', 240);
+  bar(58, 'LIMIT', 'limit', 240);
+  d.els.push(el('bar', { x: 4, y: 63.4, w: 92, h: 2.2, src: 'speed', min: 0, max: 240, color: '#ff9f3a', bg: '#1a1020', radius: 40, segs: 0, stc: true, limitMark: true }));
+  // Kacheln 2x3
+  const tile = (x, y, lab, src, unit, dec) => {
+    d.els.push(
+      el('rect', { x, y, w: 44, h: 9.5, grad: '#0c2448,#041027', gang: 170, radius: 8, border: 0.4, bgrad: CY + ',' + GL, bmode: 'linear', bang: 160, shine: 0.06, drop: true }),
+      el('text', { x: x + 2, y: y + 0.8, w: 40, h: 2.8, text: lab, size: 2, color: '#7fd8ff', weight: 700, font: 'mono' }),
+      el('value', { x: x + 2, y: y + 4, w: 40, h: 5.2, src, unit, dec: dec || 0, size: 3.8, weight: 800, font: 'condensed', color: '#ffffff', tgrad: '#ffffff,#b8ecff', align: 'l' })
+    );
+  };
+  tile(3, 67.5, 'GESAMT', 'total', ' km');
+  tile(53, 67.5, 'TRIP', 'trip', ' km', 1);
+  tile(3, 78, 'TAGES-KM', 'day', ' km', 1);
+  tile(53, 78, 'HÖHE NN', 'altnn', ' m');
+  tile(3, 88.5, 'SATELLITEN', 'sat', '');
+  tile(53, 88.5, 'WIND', 'wind', ' km/h');
+  out(d);
+})();
