@@ -237,7 +237,7 @@
     if (S.wxOn && now - wxT > 15 * 60000 && (!wxPos || L.hav(wxPos.lat, wxPos.lon, R.lat, R.lon) > 15000 || now - wxT > 30 * 60000)) {
       wxT = now; wxPos = { lat: R.lat, lon: R.lon };
       try {
-        const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${R.lat}&longitude=${R.lon}&current=temperature_2m,weather_code,wind_gusts_10m,precipitation&timezone=auto`);
+        const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${R.lat}&longitude=${R.lon}&current=temperature_2m,weather_code,wind_gusts_10m,precipitation,wind_speed_10m,wind_direction_10m,relative_humidity_2m,apparent_temperature&timezone=auto`);
         const j = await r.json();
         if (j.current) { R.wx = j.current; R.wet = (j.current.precipitation > 0.1) || ((j.current.weather_code >= 51 && j.current.weather_code <= 67) || (j.current.weather_code >= 80 && j.current.weather_code <= 82) || j.current.weather_code >= 95); }
       } catch (e) { wxT = now - 14 * 60000; }
@@ -440,9 +440,22 @@
       case 'temp': return R.wx ? { n: R.wx.temperature_2m } : none;
       case 'gust': return R.wx ? { n: R.wx.wind_gusts_10m * f } : none;
       case 'grade': return num(R.grade);
+      case 'wind': return R.wx && R.wx.wind_speed_10m != null ? { n: R.wx.wind_speed_10m * f } : none;
+      case 'winddir': return R.wx && R.wx.wind_direction_10m != null ? { n: null, t: dirName(R.wx.wind_direction_10m) } : none;
+      case 'hum': return R.wx && R.wx.relative_humidity_2m != null ? { n: R.wx.relative_humidity_2m } : none;
+      case 'feels': return R.wx && R.wx.apparent_temperature != null ? { n: R.wx.apparent_temperature } : none;
+      case 'rain': return R.wx ? { n: R.wx.precipitation } : none;
+      case 'wx': return R.wx ? { n: null, t: wxText(R.wx.weather_code) } : none;
+      case 'ref': return { n: null, t: R.road && R.road.ref ? R.road.ref : '–' };
+      case 'roadname': return { n: null, t: R.road ? (R.road.name || R.road.ref || '–') : '–' };
+      case 'battery': return R.batt != null ? { n: R.batt } : none;
+      case 'lat': return R.lat != null ? { n: null, t: R.lat.toFixed(5) } : none;
+      case 'lon': return R.lon != null ? { n: null, t: R.lon.toFixed(5) } : none;
       default: return none;
     }
   }
+  const wxText = (c) => c == null ? '–' : c === 0 ? 'Klar' : c <= 2 ? 'Heiter' : c === 3 ? 'Bewölkt' : c <= 48 ? 'Nebel' : c <= 57 ? 'Niesel' : c <= 67 ? 'Regen' : c <= 77 ? 'Schnee' : c <= 82 ? 'Schauer' : c <= 86 ? 'Schneeschauer' : 'Gewitter';
+  try { if (navigator.getBattery) navigator.getBattery().then((b) => { const u = () => { R.batt = Math.round(b.level * 100); }; u(); b.addEventListener('levelchange', u); }); } catch (e) { /* egal */ }
   function designApi() {
     return { get: getVal, state: R.state, limit: R.limit, limitKmh: limitKmh(), fu: fu(), road: R.road, next: S.preview ? R.next : null, limitObj: R.limit, signHTML };
   }
@@ -457,12 +470,52 @@
   }
   let designList = [];
   async function loadDesigns() { try { designList = await Design.Store.list(); } catch (e) { designList = []; } if (!$('#sheet').hidden) buildPanel(); }
-  function copyAi() { const t = Guide.ai(); const ok = () => toast('KI-Text kopiert. In die andere KI einfügen, Bild dazu geben.', 6000); const fb = () => { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Kopieren nicht möglich', 4000); } x.remove(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, fb); else fb(); }
-  async function importText(t) { const d = Design.parse(t); await Design.Store.put(d); await loadDesigns(); return d; }
+  function copyText(t, msg) { const ok = () => toast(msg, 6000); const fb = () => { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Kopieren nicht möglich, Text unten markieren', 5000); } x.remove(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, fb); else fb(); }
+  // Vor dem Erstellen auswählen, was in den KI-Text soll
+  function copyAi() {
+    const o = Object.assign({}, Guide.DEF, S.aiOpt || {});
+    const name = (k) => (Design.SRC.find((s) => s[0] === k) || [k, k])[1];
+    const cb = (grp, k, l, on) => `<label class="aic"><input type="checkbox" data-grp="${grp}" value="${k}" ${on ? 'checked' : ''}> ${Design.esc(l)}</label>`;
+    const ASP = [['2.1667', 'Handy quer 19,5:9'], ['2.2222', 'Handy quer 20:9'], ['2', 'Handy quer 18:9'], ['1.7778', 'Tablet quer 16:9'], ['1.3333', '4:3'], ['0.4615', 'Handy hochkant 9:19,5'], ['0.5625', 'hochkant 9:16']];
+    const ov = document.createElement('div'); ov.className = 'guide';
+    ov.innerHTML = `<div class="gbox aibox"><h3>KI-Text erstellen</h3>
+      <p class="ais">Wähle aus, was die KI einbauen soll. Nur ausgewählte Werte kommen in den Text, dadurch macht die KI weniger Fehler.</p>
+      <h4>Format</h4><select id="aiAsp">${ASP.map(([v, l]) => `<option value="${v}" ${o.aspect === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <h4>Aussehen</h4>
+      <label class="aic"><input type="radio" name="ailook" value="real" ${o.look === 'real' ? 'checked' : ''}> So echt wie möglich (Verläufe, Chrom, Leuchten)</label>
+      <label class="aic"><input type="radio" name="ailook" value="flat" ${o.look === 'flat' ? 'checked' : ''}> Schlicht und klar</label>
+      <label class="aic"><input type="radio" name="ailook" value="image" ${o.look === 'image' ? 'checked' : ''}> Mein Bild als Hintergrund, nur Werte darauf (pixelgenau)</label>
+      <h4>Bauteile</h4>${Guide.PARTS.map(([k, l]) => cb('part', k, l, o.parts.includes(k))).join('')}
+      ${Guide.GROUPS.map(([g, ks]) => `<h4>${g} <button class="mini" data-all="${ks.join(',')}">alle</button><button class="mini" data-none="${ks.join(',')}">keine</button></h4>` + ks.map((k) => cb('src', k, name(k), o.srcs.includes(k))).join('')).join('')}
+      <h4>Farben (optional)</h4><input id="aiCol" placeholder="z. B. blau und orange, schwarzer Hintergrund" value="${Design.esc(o.colors)}">
+      <h4>Weitere Wünsche (optional)</h4><textarea id="aiNotes" style="height:70px" placeholder="z. B. Tempo links groß, Drehzahl rechts">${Design.esc(o.notes)}</textarea>
+      <button class="act pri" data-g="copy">Text erstellen und kopieren</button><button class="act" data-g="show">Text anzeigen</button><button class="act" data-g="x">Schließen</button>
+      <textarea id="aiOut" readonly style="display:none;height:35vh;margin-top:8px"></textarea></div>`;
+    const read = () => {
+      const q = (s) => [...ov.querySelectorAll(s)];
+      const r = { aspect: ov.querySelector('#aiAsp').value, look: (ov.querySelector('input[name=ailook]:checked') || {}).value || 'real',
+        srcs: q('input[data-grp=src]:checked').map((x) => x.value), parts: q('input[data-grp=part]:checked').map((x) => x.value),
+        colors: ov.querySelector('#aiCol').value.trim(), notes: ov.querySelector('#aiNotes').value.trim() };
+      r.orient = +r.aspect < 1 ? 'port' : 'land';
+      if (r.parts.includes('rpmgauge') && !r.srcs.includes('rpm')) r.srcs.push('rpm');
+      if (r.parts.some((p) => p === 'gauge' || p === 'bar') && !r.srcs.includes('kmh')) r.srcs.push('kmh');
+      if (!r.srcs.includes('speed')) r.srcs.unshift('speed');
+      S.aiOpt = r; save(true); return r;
+    };
+    ov.onclick = (ev) => {
+      const t = ev.target, g = t.dataset.g;
+      if (t.dataset.all || t.dataset.none) { const on = !!t.dataset.all; (t.dataset.all || t.dataset.none).split(',').forEach((k) => { const c = ov.querySelector(`input[data-grp=src][value="${k}"]`); if (c) c.checked = on; }); return; }
+      if (g === 'x' || t === ov) ov.remove();
+      if (g === 'copy') copyText(Guide.ai(read()), 'KI-Text kopiert. In die KI einfügen, Bild dazu geben.');
+      if (g === 'show') { const out = ov.querySelector('#aiOut'); out.style.display = ''; out.value = Guide.ai(read()); out.focus(); out.select(); }
+    };
+    document.body.appendChild(ov);
+  }
+  async function importText(t, quiet) { const d = Design.parse(t); const w = d.warn || []; delete d.warn; await Design.Store.put(d); await loadDesigns(); if (w.length && !quiet) setTimeout(() => toast('Design „' + d.name + '“ angepasst: ' + w.slice(0, 3).join(' · ') + (w.length > 3 ? ' … (+' + (w.length - 3) + ')' : ''), 9000), 400); d.warn = w; return d; }
   async function fetchDesigns() {
     const r = await fetch('https://api.github.com/repos/menne1977/Neues-GPS-/contents/designs'); if (!r.ok) throw new Error(r.status === 404 ? 'Auf dem Server liegen noch keine Designs' : 'HTTP ' + r.status);
     const files = (await r.json()).filter((x) => /\.tacho\.json$/.test(x.name)); let n = 0;
-    for (const f of files) { const t = await (await fetch(f.download_url)).text(); await importText(t); n++; }
+    for (const f of files) { const t = await (await fetch(f.download_url)).text(); await importText(t, true); n++; }
     return n;
   }
   function openCreator(name) {

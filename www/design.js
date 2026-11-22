@@ -9,7 +9,7 @@
     ['rpm', 'Drehzahl (OBD)'], ['alt', 'Höhe'], ['altnn', 'Höhe über Normalnull'], ['altnap', 'Höhe über Amsterdamer Null'], ['altell', 'Höhe über Ellipsoid'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
     ['max', 'Höchsttempo heute'], ['avg', 'Durchschnitt Trip'], ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip-Kilometer'], ['total', 'Gesamtkilometer'],
     ['clock', 'Uhrzeit'], ['date', 'Datum'], ['gps', 'GPS-Genauigkeit'], ['sat', 'Satelliten'], ['temp', 'Außentemperatur'], ['gust', 'Böen'], ['grade', 'Steigung'],
-    ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'], ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
+    ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'], ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
   ];
   const TYPES = { text: 'Text', value: 'Wert', bar: 'Balken', arc: 'Bogen', needle: 'Nadel', dial: 'Skala', rect: 'Fläche', image: 'Bild', sign: 'Tempo-Schild', road: 'Straßenname', next: 'Nächstes Limit' };
   const SHOW = [['always', 'immer'], ['over', 'nur zu schnell'], ['near', 'nur knapp drüber'], ['ok', 'nur im Limit'], ['notover', 'nicht zu schnell'], ['hasLimit', 'nur wenn Limit bekannt'], ['noLimit', 'nur ohne Limit']];
@@ -35,11 +35,67 @@
     return { format: 'tacho-design', v: 1, name: name || 'Mein Tacho', aspect: 2, orient: 'land', bg: { color: '#070b12', image: '', fit: 'cover' }, els: [] };
   }
 
-  function validate(d) {
+  // KI-Dateien weichen oft ab: andere Namen für Felder, Typen und Werte. Hier wird alles auf das App-Format gebracht.
+  const SRCALIAS = {
+    geschwindigkeit: 'speed', tempo: 'speed', velocity: 'speed', speed_kmh: 'kmh', kph: 'kmh', speedkmh: 'kmh', gps_speed: 'speed',
+    speedlimit: 'limit', speed_limit: 'limit', maxspeed: 'limit', tempolimit: 'limit', limit_kmh: 'limit',
+    drehzahl: 'rpm', revs: 'rpm', engine_rpm: 'rpm', u_min: 'rpm',
+    altitude: 'alt', hoehe: 'alt', höhe: 'alt', elevation: 'alt', height: 'alt', alt_nn: 'altnn', msl: 'altnn', alt_nap: 'altnap', nap: 'altnap', ellipsoid: 'altell', alt_ell: 'altell',
+    heading: 'dir', bearing: 'dir', course: 'dir', richtung: 'dir', direction: 'dirname', compass: 'dirname', kompass: 'dirname', heading_text: 'dirname', dir_name: 'dirname', cardinal: 'dirname',
+    accel: 'acc', acceleration: 'acc', beschleunigung: 'acc', gforce: 'g', g_force: 'g', gkraft: 'g', 'g-kraft': 'g', lateral_g: 'g',
+    maxspeed_today: 'max', max_speed: 'max', topspeed: 'max', top_speed: 'max', hoechsttempo: 'max', avg_speed: 'avg', average: 'avg', avgspeed: 'avg', durchschnitt: 'avg',
+    fahrzeit: 'time', drive_time: 'time', duration: 'time', triptime: 'time', trip_time: 'time',
+    daykm: 'day', day_km: 'day', tageskilometer: 'day', today: 'day', tripkm: 'trip', trip_km: 'trip', distance: 'trip', strecke: 'trip',
+    odo: 'total', odometer: 'total', gesamt: 'total', gesamtkilometer: 'total', total_km: 'total', totalkm: 'total',
+    time_of_day: 'clock', uhrzeit: 'clock', uhr: 'clock', datum: 'date', day_date: 'date',
+    accuracy: 'gps', gps_accuracy: 'gps', genauigkeit: 'gps', satellites: 'sat', sats: 'sat', satelliten: 'sat', satellite: 'sat',
+    temperature: 'temp', temperatur: 'temp', outside_temp: 'temp', aussentemperatur: 'temp', aussentemp: 'temp', outtemp: 'temp',
+    gusts: 'gust', boeen: 'gust', böen: 'gust', windgust: 'gust', wind_gust: 'gust', wind_speed: 'wind', windspeed: 'wind', wind_direction: 'winddir', humidity: 'hum', luftfeuchte: 'hum', feels_like: 'feels', weather: 'wx', wetter: 'wx', precipitation: 'rain', regen: 'rain',
+    slope: 'grade', steigung: 'grade', incline: 'grade',
+    coolant: 'cool', kuehlmittel: 'cool', water_temp: 'cool', wassertemperatur: 'cool', oil_temp: 'oil', oeltemperatur: 'oil', öl: 'oil', throttle: 'thr', gas: 'thr', engine_load: 'load', voltage: 'volt', spannung: 'volt', bordspannung: 'volt', battery_voltage: 'volt',
+    fuel_level: 'fuel', tank: 'fuel', tankinhalt: 'fuel', consumption: 'l100', verbrauch: 'l100', l_100km: 'l100',
+    road: 'roadname', street: 'roadname', strasse: 'roadname', straße: 'roadname', road_ref: 'ref', akku: 'battery', phone_battery: 'battery'
+  };
+  const TYPEALIAS = { label: 'text', title: 'text', caption: 'text', number: 'value', readout: 'value', gauge_value: 'value', data: 'value', progress: 'bar', progressbar: 'bar', gauge: 'arc', ring: 'arc', pointer: 'needle', hand: 'needle', scale: 'dial', ticks: 'dial', box: 'rect', panel: 'rect', card: 'rect', shape: 'rect', circle: 'rect', img: 'image', picture: 'image', speedlimit: 'sign', limit: 'sign', limitsign: 'sign', street: 'road', roadname: 'road', nextlimit: 'next' };
+  const FIELDALIAS = { type: 't', kind: 't', source: 'src', value: 'src', data: 'src', width: 'w', height: 'h', left: 'x', top: 'y', fontSize: 'size', font_size: 'size', fontsize: 'size', colour: 'color', fill: 'color', background: 'bg', fontWeight: 'weight', textAlign: 'align', opacity: 'op', rotation: 'rot', angle: 'rot', borderWidth: 'border', strokeColor: 'borderColor', decimals: 'dec', startAngle: 'a0', endAngle: 'a1', thickness: 'thick', length: 'len', label: 'text', content: 'text', visible: 'show' };
+  const NUMF = ['x', 'y', 'w', 'h', 'rot', 'op', 'size', 'dec', 'pad', 'min', 'max', 'a0', 'a1', 'thick', 'len', 'width', 'radius', 'border', 'segs', 'step', 'minor', 'gs', 'gang', 'bang', 'ins', 'rgs', 'shine', 'dim', 'red', 'tail', 'n', 'weight'];
+  const SRCSET = new Set(SRC.map((s) => s[0]));
+  function normSrc(v) { if (v == null) return v; let k = String(v).trim(); if (SRCSET.has(k)) return k; const l = k.toLowerCase().replace(/[\s.]+/g, '_'); if (SRCSET.has(l)) return l; return SRCALIAS[l] || SRCALIAS[l.replace(/_/g, '')] || k; }
+  function normEl(e0, warn) {
+    const e = {};
+    for (const [k, v] of Object.entries(e0)) { const nk = (k in FIELDALIAS && !(FIELDALIAS[k] in e0)) ? FIELDALIAS[k] : k; e[nk] = v; }
+    if (typeof e.t === 'string') { const t = e.t.toLowerCase().replace(/[\s_-]/g, ''); if (!TYPES[e.t]) e.t = TYPES[t] ? t : (TYPEALIAS[t] || e.t); if (t === 'circle') e.shape = 'circle'; }
+    if (e.t === 'value' && e.src == null && typeof e.text === 'string') { const s = normSrc(e.text.replace(/[{}$]/g, '')); if (SRCSET.has(s)) { e.src = s; delete e.text; } }
+    if (e.t === 'text' && e.src != null && SRCSET.has(normSrc(e.src))) e.t = 'value';
+    if (e.src != null) { const s = normSrc(e.src); if (!SRCSET.has(s)) { warn.push('Unbekannter Wert „' + e.src + '“ (' + (e.text || e.id || e.t) + ') → Tempo'); e.src = 'speed'; } else e.src = s; }
+    for (const f of NUMF) if (typeof e[f] === 'string' && e[f].trim() !== '' && !isNaN(parseFloat(e[f]))) e[f] = parseFloat(e[f]);
+    if (typeof e.weight === 'string') e.weight = /bold|fett/i.test(e.weight) ? 800 : 600;
+    if (typeof e.align === 'string') e.align = /^(l|left|links|start)/i.test(e.align) ? 'l' : /^(r|right|rechts|end)/i.test(e.align) ? 'r' : 'c';
+    if (typeof e.show === 'boolean') e.show = 'always';
+    if (e.show && !SHOW.some((s) => s[0] === e.show)) e.show = 'always';
+    if (typeof e.bg === 'object' && e.bg) e.bg = e.bg.color || '#1c2840';
+    if (Array.isArray(e.grad)) e.grad = e.grad.join(','); if (Array.isArray(e.rgrad)) e.rgrad = e.rgrad.join(','); if (Array.isArray(e.bgrad)) e.bgrad = e.bgrad.join(','); if (Array.isArray(e.tgrad)) e.tgrad = e.tgrad.join(',');
+    if (e.t === 'needle' && e.width > 6) e.width = e.width / 3;
+    return e;
+  }
+  function validate(d, warn) {
+    warn = warn || [];
+    if (d && !d.els && Array.isArray(d.elements)) d.els = d.elements;
+    if (d && !d.format && Array.isArray(d.els)) d.format = 'tacho-design';
+    if (d && typeof d.bg === 'string') d.bg = { color: d.bg };
+    if (d && d.background && !d.bg) d.bg = typeof d.background === 'string' ? { color: d.background } : d.background;
+    if (d && Array.isArray(d.els)) d.els = d.els.map((e) => (e && typeof e === 'object' ? normEl(e, warn) : e));
+    if (d && typeof d.aspect === 'string') { const m = d.aspect.match(/([\d.]+)\s*[:/x]\s*([\d.]+)/); d.aspect = m ? +m[1] / +m[2] : parseFloat(d.aspect); }
+    if (d && Array.isArray(d.els)) {
+      const drop = d.els.filter((e) => !e || !TYPES[e.t]);
+      if (drop.length) warn.push(drop.length + ' Element(e) mit unbekanntem Typ entfernt: ' + [...new Set(drop.map((e) => e && e.t))].join(', '));
+      for (const e of d.els) if (e && TYPES[e.t] && ((+e.x || 0) > 100 || (+e.y || 0) > 100 || (+e.x || 0) + (+e.w || 0) > 110 || (+e.y || 0) + (+e.h || 0) > 110)) { warn.push('Element ' + (e.text || e.src || e.t) + ' liegt außerhalb der Fläche'); if (e.x > 100 || e.y > 100) { e.x = Math.min(e.x, 95); e.y = Math.min(e.y, 95); } }
+    }
     if (!d || d.format !== 'tacho-design' || !Array.isArray(d.els)) throw new Error('Das ist keine Tacho-Design-Datei');
     d.name = String(d.name || 'Design').slice(0, 40);
     d.aspect = +d.aspect > 0.3 && +d.aspect < 4 ? +d.aspect : 2;
     d.bg = Object.assign({ color: '#070b12', image: '', fit: 'cover' }, d.bg || {});
+    d.warn = warn;
     d.els = d.els.filter((e) => e && TYPES[e.t]).map((e, i) => Object.assign({ id: 'e' + i, x: 10, y: 10, rot: 0, op: 1, show: 'always' }, DEFAULTS[e.t], e));
     return d;
   }
@@ -217,7 +273,8 @@
     let t = String(text).trim();
     const f = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (f) t = f[1].trim();
     const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a > 0 || (b >= 0 && b < t.length - 1)) t = t.slice(a, b + 1);
-    return validate(JSON.parse(t));
+    t = t.replace(/\/\/[^\n"]*$/gm, '').replace(/,\s*([}\]])/g, '$1');
+    return validate(JSON.parse(t), []);
   }
 
   // Bild verkleinern und als Data-URL zurückgeben (Dateigröße klein halten)

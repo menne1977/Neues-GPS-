@@ -17,66 +17,102 @@ const Guide = (() => {
 <h3>Sprache</h3>
 <p>Sage zuerst das Weckwort, dann zum Beispiel: „Zeige Gesamtkilometer“, „Öffne Spotify“, „Split mit Navigation“, „Tankstellen“, „Stau“. Alle Befehle stehen unter „Sprachbefehle und Test“.</p>`;
 
-  const ai = () => {
-    const D = Design;
-    return `Du sollst für meine Android-Tacho-App eine Design-Datei im JSON-Format erstellen. Ich gebe dir ein Bild oder eine Beschreibung, wie der Tacho aussehen soll. Antworte NUR mit gültigem JSON (ein Codeblock, keine Erklärung davor oder danach, keine Kommentare im JSON).
+  // Gruppen für die Auswahl vor dem Erstellen
+  const GROUPS = [
+    ['Fahren', ['speed', 'limit', 'free', 'max', 'avg', 'acc', 'g']],
+    ['Strecke und Zeit', ['trip', 'day', 'total', 'time', 'clock', 'date']],
+    ['Ort und Richtung', ['dirname', 'dir', 'alt', 'altnn', 'altnap', 'altell', 'grade', 'roadname', 'ref', 'gps', 'sat', 'lat', 'lon']],
+    ['Wetter', ['temp', 'feels', 'gust', 'wind', 'winddir', 'hum', 'rain', 'wx']],
+    ['Motor (OBD-Adapter nötig)', ['rpm', 'cool', 'oil', 'volt', 'thr', 'load', 'fuel', 'l100']],
+    ['Handy', ['battery']]
+  ];
+  const PARTS = [['sign', 'Tempo-Schild'], ['road', 'Straßenname-Zeile'], ['next', 'Nächstes Limit'], ['gauge', 'Rundinstrument Tempo mit Nadel'], ['rpmgauge', 'Rundinstrument Drehzahl'], ['bar', 'Tempo-Balken mit Limit-Strich']];
+  const DEF = { orient: 'land', aspect: '2.1667', look: 'real', srcs: ['speed', 'max', 'trip', 'day', 'total', 'time', 'clock', 'dirname', 'alt', 'temp'], parts: ['sign', 'road', 'next', 'bar'], colors: '', notes: '' };
 
-FORMAT
-{ "format":"tacho-design", "v":1, "name":"Name", "aspect":2.1667, "orient":"land", "bg":{"color":"#070b12","image":"","fit":"cover"}, "els":[ ...Elemente... ] }
-- aspect = Breite geteilt durch Höhe der Fläche (quer z. B. 2.1667 für 19.5:9, hochkant z. B. 0.4615). orient = "land" oder "port".
-- Alle Elemente liegen auf einer Fläche von 100 x 100 Prozent. Position und Größe sind Prozent dieser Fläche: x, y (linke obere Ecke), w, h. Wichtig: Prozent in Breite und Höhe sind verschieden groß. Ein Kreis braucht deshalb w = h geteilt durch aspect (bei aspect 2.1667 und h 90 ist w etwa 41.5).
-- Jedes Element: { "id":"e1", "t":"Typ", "x":0, "y":0, "w":30, "h":20, "rot":0, "op":1, "show":"always", ...typ-spezifische Felder }
-- Reihenfolge in "els" = Zeichenreihenfolge, das Letzte liegt oben.
+  const EXAMPLE = {
+    format: 'tacho-design', v: 1, name: 'Beispiel', aspect: 2.1667, orient: 'land',
+    bg: { color: '#03060e', grad: 'radial-gradient(ellipse at 50% 55%,#0e2146 0%,#060d1e 60%,#03060e 100%)' },
+    els: [
+      { id: 'e1', t: 'rect', x: 2, y: 8, w: 38.8, h: 84, shape: 'circle', rgrad: '#173a78,#08142c', border: 2.2, bgrad: '#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb', bmode: 'conic', drop: true, inner: '#2f7bff66', ins: 5 },
+      { id: 'e2', t: 'arc', x: 3.8, y: 12, w: 35.2, h: 76, src: 'kmh', min: 0, max: 240, a0: -130, a1: 130, thick: 6, grad: '#00d0ff,#3cff9a,#ffd23c,#ff2b1c', bg: '#0f1a33', glow: '#2a8bff', gs: 1 },
+      { id: 'e3', t: 'dial', x: 5.4, y: 15.5, w: 32, h: 69, min: 0, max: 240, step: 20, minor: 3, a0: -130, a1: 130, color: '#e8f1ff', size: 2.6, red: 200, band: [[200, 240, '#ff3b30']], italic: true, lim: true },
+      { id: 'e4', t: 'needle', x: 3.8, y: 12, w: 35.2, h: 76, src: 'kmh', min: 0, max: 240, a0: -130, a1: 130, len: 82, width: 1.6, tail: 10, color: '#ff4030', glow: '#ff3b2e', gs: 0.7, shadow: true },
+      { id: 'e5', t: 'value', x: 11.4, y: 54, w: 20, h: 16, src: 'speed', size: 13, weight: 900, font: 'condensed', color: '#ffffff', tgrad: '#ffffff,#9fd0ff', glow: '#2a8bff', gs: 0.8 },
+      { id: 'e6', t: 'text', x: 11.4, y: 70, w: 20, h: 5, text: 'KM/H', size: 3, color: '#8aa2d0', weight: 700 },
+      { id: 'e7', t: 'rect', x: 46, y: 8, w: 24, h: 26, grad: '#18284a,#0b1426', gang: 160, radius: 10, border: 0.6, bgrad: '#4a78c8,#1b2c52', bmode: 'linear', bang: 160, shine: 0.07, drop: true },
+      { id: 'e8', t: 'text', x: 46, y: 10, w: 24, h: 6, text: 'GESAMT', size: 3.4, color: '#8aa2d0', weight: 700 },
+      { id: 'e9', t: 'value', x: 46, y: 17, w: 24, h: 13, src: 'total', unit: ' km', size: 8, weight: 800, font: 'condensed', tgrad: '#ffffff,#b8d6ff' },
+      { id: 'e10', t: 'sign', x: 76, y: 8, w: 20, h: 40 }
+    ]
+  };
 
-TYPEN UND STANDARDWERTE (Felder weglassen = Standard)
-${Object.entries(D.TYPES).map(([k, n]) => `- "${k}" (${n}): ${JSON.stringify(D.DEFAULTS[k])}`).join('\n')}
+  const ai = (o) => {
+    const D = Design; o = Object.assign({}, DEF, o || {});
+    const name = (k) => (D.SRC.find((s) => s[0] === k) || [k, k])[1];
+    const srcs = (o.srcs && o.srcs.length ? o.srcs : D.SRC.map((s) => s[0]));
+    const parts = o.parts || [];
+    const lookTxt = o.look === 'image'
+      ? 'MEIN BILD WIRD DER HINTERGRUND: Ich lade mein Bild später im Creator als Hintergrund. Lasse bg.image leer, setze "aspect" genau auf Breite geteilt durch Höhe des Bildes und lege nur die Werte-Elemente (value, needle, arc, sign, road, next) genau auf die Stellen im Bild, wo die Zahlen und Zeiger stehen. Keine eigenen Flächen (rect) zeichnen. Schrift und Farbe passend zum Bild.'
+      : o.look === 'flat'
+        ? 'STIL: schlicht und flach, klare Kacheln, wenig Effekte, gut lesbar.'
+        : 'STIL: SO ECHT WIE MÖGLICH. Übernimm Farben, Anordnung und Wirkung meines Bildes genau. Benutze reichlich Verläufe, Leuchten, Chromringe, Glasglanz und Schatten (siehe EFFEKTE). Keine flachen Einzelfarben, wenn das Bild Verläufe zeigt.';
+    return `Du erstellst eine Design-Datei (JSON) für meine Android-Tacho-App. Antworte NUR mit dem JSON in einem Codeblock. Kein Text davor oder danach, keine Kommentare im JSON, keine Abkürzungen wie "...". Schreibe die komplette Datei.
 
-ERKLÄRUNG DER FELDER
-- size = Schriftgröße in Prozent der Flächenhöhe. align: "l", "c", "r". font: ${Object.keys(D.FONTS).join(', ')}. weight: 400 bis 900.
-- stc:true = Farbe wechselt nach Tempo zum Limit (grün, gelb, rot).
-- bar: Balken von min bis max, segs = Anzahl Segmente (0 = durchgehend), dir "r" oder "l" oder "u", limitMark zeigt das Tempolimit als Strich.
-- arc, needle, dial: Rundinstrument. a0 und a1 sind Start- und Endwinkel in Grad (0 = oben, -135 bis 135 ist ein Dreiviertelkreis). Bogen, Nadel und Skala müssen dieselbe x, y, w, h und dieselben min, max, a0, a1 haben. Nadel-len ist Prozent des Radius. dial: step = Beschriftungsabstand, minor = kleine Striche pro Abschnitt.
-- value: zeigt einen Wert, "unit" ist ein Text dahinter, "dec" Nachkommastellen.
-- sign: das Tempolimit-Schild (rund, wird automatisch quadratisch eingepasst), road: Straßenname, next: nächstes Limit mit Entfernung.
-- image: "img" ist eine Data-URL (nur wenn ich ein Bild einbauen will), fit "contain" oder "cover".
-- show: ${D.SHOW.map(([v, t]) => `"${v}" (${t})`).join(', ')}.
+AUFBAU (genau diese Schlüssel verwenden, nichts erfinden)
+{ "format":"tacho-design", "v":1, "name":"Name", "aspect":${o.aspect}, "orient":"${o.orient}", "bg":{"color":"#rrggbb","grad":"radial-gradient(...)"}, "els":[ ... ] }
+- aspect = Breite durch Höhe. ${o.orient === 'port' ? 'Hochkant, also kleiner als 1.' : 'Quer.'}
+- Jedes Element hat "id", "t" (Typ), "x", "y", "w", "h" in PROZENT der Fläche (0 bis 100). x+w und y+h höchstens 100.
+- Prozent in Breite und Höhe sind verschieden groß! Für einen Kreis gilt: w = h / aspect (bei aspect ${o.aspect} und h 80 ist w ${(80 / parseFloat(o.aspect)).toFixed(1)}).
+- Spätere Elemente liegen über früheren. Zuerst Flächen, dann Bögen und Skalen, dann Nadeln, dann Zahlen.
+- Farben nur als "#rrggbb" oder "#rrggbbaa". Zahlen ohne Anführungszeichen.
 
-WERTEQUELLEN für "src" bei value, bar, arc, needle
-${D.SRC.map(([k, n]) => `- "${k}": ${n}`).join('\n')}
-(Wenn OBD nicht verbunden ist, zeigen die OBD-Werte einen Strich.)
+TYPEN ("t") UND IHRE FELDER (nur diese Typen gibt es)
+- "text": feste Beschriftung. text, size, color, font, weight, align, tgrad, glow
+- "value": zeigt einen LIVE-WERT. src (Pflicht, siehe WERTE), unit (Text dahinter, z. B. " km"), dec (Nachkommastellen), size, color, font, weight, align, stc, tgrad, glow
+- "bar": Balken. src, min, max, dir ("r","l","u","d"), color, grad, bg, radius, segs (Anzahl Segmente, 0 = durchgehend), limitMark (Limit-Strich), stc
+- "arc": Bogen eines Rundinstruments. src, min, max, a0, a1 (Grad, 0 = oben, z. B. -130 bis 130), thick, color oder grad, bg, glow, dim
+- "needle": Zeiger. src, min, max, a0, a1 (GLEICH wie der Bogen), len (Prozent des Radius), width (1 bis 2), tail, color, glow, shadow, hub
+- "dial": Skala mit Zahlen. min, max, step, minor, a0, a1, color, size (2 bis 4), red, redColor, band, italic, lim. Wichtig: min und max der Skala sind die angezeigten Zahlen (Drehzahl z. B. 0 bis 8), bei Bogen und Nadel dagegen die echten Werte (0 bis 8000).
+- "rect": Fläche, Kachel, Kreis oder Ring. color oder grad (mit gang) oder rgrad, radius (Prozent), shape:"circle", border, borderColor oder bgrad mit bmode ("conic" für Ringe, "linear" mit bang), shine, inner (mit ins), rglow (mit rgs), drop
+- "sign": rundes Tempolimit-Schild (passt sich selbst an)
+- "road": Name der aktuellen Straße. size, color, font, weight, align
+- "next": nächstes Tempolimit mit Entfernung. size
+- "image": nur wenn ich ein Bild mitgebe, "img" als data:-URL
+Weitere Felder bei allen: "rot" (Drehung), "op" (0 bis 1), "show": "always" | "over" (nur zu schnell) | "hasLimit".
+size ist die Schriftgröße in Prozent der Flächenhöhe. h muss mindestens size × 1,3 sein, sonst wird abgeschnitten. font: "sans","condensed","mono","serif". weight: 400, 600, 800 oder 900. align: "l","c","r". stc:true färbt nach Tempolimit (grün, gelb, rot).
 
-LOOK: GLEICH SO WIE MEIN BILD (sehr wichtig)
-Die App kann mehr als flache Farben. Baue den Tacho so, dass er dem Bild möglichst genau gleicht: Farben, Verläufe, Leuchten, Metall, Glas. Benutze diese zusätzlichen Felder (alle optional):
-- Alle Elemente: "glow":"#2a8bff" (Leuchten) mit "gs":1 (Stärke), "shadow":true (Schlagschatten).
-- Hintergrund: "bg":{"color":"#020409","grad":"radial-gradient(ellipse at 50% 60%,#0d2146 0%,#060d1e 55%,#020409 100%)"}. Auch linear-gradient möglich. Keine Bilder-URLs.
-- "text" und "value": "tgrad":"#ffffff,#9fd0ff" (Zahl mit Farbverlauf von oben nach unten), "glow".
-- "rect" (Flächen, auch Kreise und Ringe): "grad":"#18284a,#0b1426" und "gang":160 (Verlauf mit Winkel), "rgrad":"#fff6a0,#ffd400,#b88a00" (runder Verlauf für Kugeln und Instrumentenflächen), "shape":"circle" (Kreis, dann w und h so wählen, dass es rund ist), "border":2.2 mit "bgrad":"Farbe1,Farbe2,..." (Randverlauf), "bmode":"conic" (Ring herum, für Chrom oder Regenbogen) oder "linear" mit "bang":160, "shine":0.1 (Glasglanz oben), "inner":"#2f7bff66" mit "ins":5 (innerer Schein), "rglow":"#7a5cff66" mit "rgs":2 (Leuchten außen), "drop":true (Schatten).
-- "arc": "grad":"#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff2b1c" (Farbverlauf entlang des Bogens, ungenutzter Teil wird abgedunkelt, "dim":0.16), dazu "glow". Ohne "grad" ist der Bogen einfarbig.
-- "dial": "red":6 (ab diesem Wert werden Striche und Zahlen rot), "redColor", "band":[[6,8,"#ff3b30"]] (farbiger Streifen am Rand), "italic":true.
-- "needle": spitz zulaufend wie echt, "width":1.6, "tail":10 (Gegengewicht), "glow", "shadow":true, "hub":true (Metallnabe). "style":"line" gibt eine dünne Linie.
+EFFEKTE (machen den Tacho echt)
+- glow:"#2a8bff" und gs:1 = Leuchten. shadow:true = Schlagschatten.
+- tgrad:"#ffffff,#9fd0ff" = Zahl mit Farbverlauf.
+- grad / rgrad / bgrad: Farben mit Komma getrennt, z. B. "#ff0000,#ffd000,#00ff00".
+- Chromring: rect shape:"circle", border:2.2, bgrad:"#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb", bmode:"conic".
+- Regenbogen-Rahmen: rect mit radius, border:1.3, bgrad:"#ff2bd6,#7a3cff,#2b8cff,#00e5ff,#2bff7a,#ffe92b,#ff9a2b,#ff2b4a,#ff2bd6", bmode:"conic", rglow.
+- Glasscheibe über einem Instrument: rect shape:"circle", color:"#00000000", shine:0.1.
+- Hintergrund-Verlauf in bg.grad: "radial-gradient(ellipse at 50% 50%,#13243f 0%,#050a14 100%)" oder "linear-gradient(180deg,#111 0%,#000 100%)".
 
-REZEPT FÜR EIN ECHT WIRKENDES RUNDINSTRUMENT (gleiche Ausrichtung, mit h = Höhe und w = h geteilt durch aspect):
-1. rect shape:"circle", rgrad für die Instrumentenfläche (dunkelblau zu fast schwarz), border:2.2, bgrad:"#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb", bmode:"conic" (Chromring), drop:true, inner.
-2. arc mit grad und glow, ein wenig kleiner als der Ring (etwa 2 bis 4 Prozent Rand).
-3. dial etwas kleiner als der Bogen, mit red und band für den roten Bereich.
-4. needle mit denselben x, y, w, h, min, max, a0, a1 wie der Bogen, Farbe kräftig rot oder orange, glow, tail.
-5. Mittelscheibe: rect shape:"circle" mit rgrad (zum Beispiel gelb oder dunkel), rglow, shine:0.4, darauf text für die Beschriftung und value für die Zahl.
-6. Zum Schluss ein rect shape:"circle", color:"transparent", shine:0.1 in voller Instrumentengröße als Glasscheibe.
-Rahmen um das Ganze: rect mit Rundung, border:1.3, bgrad mit Regenbogenfarben und bmode:"conic", rglow.
-Kacheln: rect mit grad, border:0.6, bgrad mit bmode:"linear", shine:0.07, drop:true; Beschriftung klein und gedämpft, Zahl groß mit tgrad.
-Wenn ich ein Bild beschreibe oder mitgebe: übernimm Farben, Reihenfolge und Anordnung genau und benutze lieber zu viel Verlauf und Leuchten als flache Farben.
+WERTE für "src" (NUR diese Namen, genau so geschrieben)
+${srcs.map((k) => `- "${k}": ${name(k)}`).join('\n')}
 
-EXAKTES BILD ALS HINTERGRUND (wenn ich das möchte)
-Dann lasse "bg.image" leer und setze nur die Werte-Elemente (value, needle, arc, sign, road …) genau auf die passenden Stellen des Bildes. Ich lade das Bild danach im Creator unter „Hintergrund“ ein, der Tacho sieht dann genau aus wie das Bild und die echten Werte laufen darüber. Gib in diesem Fall auch das Seitenverhältnis des Bildes als "aspect" an.
+GEWÜNSCHTER INHALT (alles davon soll vorkommen)
+- Werte: ${srcs.map((k) => name(k)).join(', ')}
+${parts.length ? '- Bauteile: ' + parts.map((p) => (PARTS.find((x) => x[0] === p) || [p, p])[1]).join(', ') : ''}
+${o.colors ? '- Farben: ' + o.colors : ''}
+${o.notes ? '- Sonstiges: ' + o.notes : ''}
 
-REGELN
-- Nichts darf sich unabsichtlich überdecken. Texte brauchen genug Höhe: h mindestens etwa size mal 1.3.
-- Das Tempo ist das wichtigste Element: groß und gut lesbar. Schild und Straßenname gehören dazu.
-- Benutze nur die oben genannten Typen und Quellen. Farben als "#rrggbb".
+${lookTxt}
+
+FUNKTIONIERENDES BEISPIEL (Aufbau genau so übernehmen, Inhalt nach meinem Wunsch ändern)
+${JSON.stringify(EXAMPLE)}
+
+PRÜFE VOR DER ANTWORT
+1. Jedes "value", "bar", "arc" und "needle" hat ein "src" aus der Liste WERTE.
+2. Nadel und Bogen eines Instruments haben gleiche x, y, w, h, min, max, a0, a1.
+3. Nichts ragt über 100, nichts überdeckt Zahlen ungewollt.
+4. Gültiges JSON ohne Kommentare und ohne Komma am Ende von Listen.
 
 MEIN WUNSCH
-(Hier Bild anhängen und beschreiben, was wo hin soll und welcher Stil gewünscht ist.)`;
+(Hier dein Bild anhängen und beschreiben, was wo hin soll.)`;
   };
-  return { html, ai };
+  return { html, ai, GROUPS, PARTS, DEF };
 })();
 if (typeof module !== 'undefined') module.exports = Guide;
