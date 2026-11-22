@@ -60,7 +60,7 @@ const Guide = (() => {
 
 AUFBAU (genau diese Schlüssel verwenden, nichts erfinden)
 { "format":"tacho-design", "v":1, "name":"Name", "aspect":${o.aspect}, "orient":"${o.orient}", "bg":{"color":"#rrggbb","grad":"radial-gradient(...)"}, "els":[ ... ] }
-- aspect = Breite durch Höhe. Nimm GENAU ${o.aspect}, das ist die echte Fläche in der App${o.px ? ' (' + o.px + ' Pixel)' : ''}. ${o.split ? 'Das ist ein GETEILTER BILDSCHIRM (halbe Fläche, fast quadratisch): wenige, große Anzeigen, Tempo sehr groß, kleine Schrift vermeiden (size mindestens 4).' : o.orient === 'port' ? 'Hochkant, also kleiner als 1.' : 'Quer, die ganze Breite nutzen.'} Fülle die Fläche komplett aus, ohne leere Ränder.
+- aspect = Breite durch Höhe. Nimm GENAU ${o.aspect}, das ist die echte Fläche in der App${o.px ? ' (' + o.px + ' Pixel)' : ''}. ${o.split ? 'Das ist ein GETEILTER BILDSCHIRM (halbe Fläche, fast quadratisch): wenige, große Anzeigen, Tempo sehr groß, kleine Schrift vermeiden (size mindestens 4).' : o.orient === 'port' ? 'Hochkant, also kleiner als 1.' : 'Quer, die ganze Breite nutzen.'} Fülle die Fläche komplett aus, ohne leere Ränder. Verteile die Elemente über die ganze Fläche von 0 bis 100 Prozent in Breite und Höhe. Im geteilten Bildschirm wird das Design auf die halbe Fläche gestreckt, also keine Ränder einplanen.
 - Jedes Element hat "id", "t" (Typ), "x", "y", "w", "h" in PROZENT der Fläche (0 bis 100). x+w und y+h höchstens 100.
 - Prozent in Breite und Höhe sind verschieden groß! Für einen Kreis gilt: w = h / aspect (bei aspect ${o.aspect} und h 80 ist w ${(80 / parseFloat(o.aspect)).toFixed(1)}).
 - Spätere Elemente liegen über früheren. Zuerst Flächen, dann Bögen und Skalen, dann Nadeln, dann Zahlen.

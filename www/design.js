@@ -154,7 +154,7 @@
       const W = host.clientWidth, H = host.clientHeight; if (!W || !H) return;
       let w = W, h = W / d.aspect; if (h > H) { h = H; w = H * d.aspect; }
       // Bis 12 % Abweichung: ganze Fläche füllen statt Rändern (bei geteiltem Bildschirm und anderen Handys)
-      if (!(opts && opts.edit) && Math.abs(W / H / d.aspect - 1) <= 0.12) { w = W; h = H; }
+      if ((opts && opts.fill) || (!(opts && opts.edit) && Math.abs(W / H / d.aspect - 1) <= 0.12)) { w = W; h = H; }
       host.style.background = d.bg.color || '#000';
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
       canvas.style.setProperty('--u', (h / 100) + 'px'); canvas.style.setProperty('--uw', (w / 100) + 'px');

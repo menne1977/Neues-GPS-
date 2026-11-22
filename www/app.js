@@ -478,11 +478,11 @@
   async function applyDesign() {
     const name = wantDesign(), b = document.body;
     if (!name) { if (cur) { cur = null; $('#custom').innerHTML = ''; } b.classList.remove('cd'); return; }
-    if (cur && cur.name === name) { cur.m.layout(); return; }
+    if (cur && cur.name === name && cur.fill === isSplit()) { cur.m.layout(); return; }
     let d = null; try { d = await Design.Store.get(name); } catch (e) { /* kein Speicher */ }
     if (!d) { b.classList.remove('cd'); cur = null; return; }
     if (wantDesign() !== name) return;
-    b.classList.add('cd'); cur = { name, d, m: Design.mount($('#custom'), d, {}) };
+    b.classList.add('cd'); const fill = isSplit(); cur = { name, d, fill, m: Design.mount($('#custom'), d, { fill }) };
   }
   let designList = [];
   async function loadDesigns() { try { designList = await Design.Store.list(); } catch (e) { designList = []; } if (!$('#sheet').hidden) buildPanel(); }
