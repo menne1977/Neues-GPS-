@@ -94,12 +94,23 @@ public class GnssPlugin extends Plugin {
                 @Override public void onProviderDisabled(String p) { }
                 @Override public void onStatusChanged(String p, int s, android.os.Bundle b) { }
             };
-            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, fixListener, Looper.getMainLooper());
+            boolean fast = false;
+            if (Build.VERSION.SDK_INT >= 31) {
+                try {
+                    // schnellste Abfrage: bis zu 4 Fixe pro Sekunde, wenn das Handy es kann
+                    android.location.LocationRequest req = new android.location.LocationRequest.Builder(250)
+                        .setQuality(android.location.LocationRequest.QUALITY_HIGH_ACCURACY).setMinUpdateIntervalMillis(100).build();
+                    final Handler hh = new Handler(Looper.getMainLooper());
+                    lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, req, hh::post, fixListener);
+                    fast = true;
+                } catch (Exception ignore) { fast = false; }
+            }
+            if (!fast) lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, fixListener, Looper.getMainLooper());
             // Ersatz drinnen oder ohne Satelliten: Ortung übers Netz, und sofort der letzte bekannte Ort
             try { if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 0, fixListener, Looper.getMainLooper()); } catch (Exception ignore) { }
             Location best = null;
             for (String pr : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, "fused", LocationManager.PASSIVE_PROVIDER}) {
-                try { Location l = lm.getLastKnownLocation(pr); if (l != null && (best == null || l.getTime() > best.getTime())) best = l; } catch (Exception ignore) { }
+                try { Location l = lm.getLastKnownLocation(pr); if (l != null && !(LocationManager.GPS_PROVIDER.equals(pr) && System.currentTimeMillis() - l.getTime() > 15000) && (best == null || l.getTime() > best.getTime())) best = l; } catch (Exception ignore) { }
             }
             if (best != null) { final Location b = best; new Handler(Looper.getMainLooper()).post(() -> fixListener.onLocationChanged(b)); }
             call.resolve();

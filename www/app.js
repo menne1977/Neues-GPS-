@@ -130,6 +130,8 @@
     if (S.day.d !== today) S.day = { d: today, dist: 0, mt: 0, max: 0, altMin: null, altMax: null };
     if (c.accuracy < 50 && v < 330) { if (v > S.day.max) S.day.max = v; if (v > S.trip.max) S.trip.max = v; }
     R.speed = v; R.acc = c.accuracy;
+    heroTarget = v * fu(); // Tempo sofort anzeigen, vor der schweren Auswertung
+    if (Math.abs(heroTarget - heroShown) > 40 || heroShown === 0) heroShown = heroTarget;
     if (c.heading != null && !isNaN(c.heading) && v > 4) { R.heading = c.heading; R.headT = Date.now(); }
     if (c.msl != null || c.ell != null) { R.altMsl = c.msl; R.altEll = c.ell; R.altApprox = false; }
     else if (c.altitude != null && !isNaN(c.altitude)) { R.altMsl = c.altitude; R.altEll = null; R.altApprox = false; }
@@ -292,7 +294,7 @@
     const dt = Math.min(0.2, (t - heroT) / 1000); heroT = t;
     if (Date.now() - R.fixT > 6000 && R.fixT) heroTarget = 0;
     const diff = heroTarget - heroShown;
-    if (Math.abs(diff) > 0.02) { heroShown += diff * Math.min(1, dt * 7); if (Math.abs(heroTarget - heroShown) < 0.05) heroShown = heroTarget; }
+    if (Math.abs(diff) > 0.02) { heroShown += diff * Math.min(1, dt * 18); if (Math.abs(heroTarget - heroShown) < 0.05) heroShown = heroTarget; }
     const txt = S.decimals ? fmt(heroShown, 1) : String(Math.round(heroShown));
     const el = $('#speed'); if (el.textContent !== txt) el.textContent = txt;
     const hr = headingRaw();
