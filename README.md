@@ -12,9 +12,8 @@ Neuer GPS-Tacho als Android-App (Capacitor). Läuft quer und hochkant.
 
 - `www/limit.js` – Tempolimit-Engine (reine Logik)
 - `www/voice.js` – Sprachbefehle (reine Logik)
-- `www/obd.js` – OBD2-Anbindung
 - `www/app.js`, `style.css`, `index.html` – Oberfläche
-- `android-overlay/` – Android-Plugins (Satelliten, Sprache mit Aktivierungswort, OBD, Hintergrunddienst)
+- `android-overlay/` – Android-Plugins (Satelliten, Sprache mit Aktivierungswort, Hintergrunddienst)
 - `.github/workflows/android.yml` – baut bei jedem Push auf `main` die Debug-APK (Artefakt `gps-debug-apk`)
 
 Die App verwaltet ihre Daten unter eigenem Schlüssel und teilt nichts mit der alten App.

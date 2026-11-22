@@ -43,12 +43,12 @@ const out = (d) => {
   out(d);
 })();
 
-// 2) Sport-Balken quer: riesiges Tempo, Segment-Balken, Drehzahl-Balken
+// 2) Sport-Balken quer: riesiges Tempo, Segment-Balken oben
 (() => {
   const d = D.blank('Sport Balken'); d.aspect = 2.1667; d.bg.color = '#0a0508';
   d.els.push(
-    el('bar', { x: 3, y: 5, w: 94, h: 9, src: 'rpm', min: 0, max: 8000, color: '#ff5a1f', bg: '#1c0f12', radius: 4, segs: 40, stc: false, limitMark: false }),
-    el('value', { x: 3, y: 15, w: 20, h: 8, src: 'rpm', unit: 'U/min', size: 5, color: '#ff9a6b', align: 'l', weight: 600 }),
+    el('bar', { x: 3, y: 5, w: 94, h: 9, src: 'kmh', min: 0, max: 240, color: '#ff5a1f', bg: '#1c0f12', radius: 4, segs: 40, stc: false, limitMark: false }),
+    el('value', { x: 3, y: 15, w: 20, h: 8, src: 'max', unit: ' km/h max', size: 5, color: '#ff9a6b', align: 'l', weight: 600 }),
     el('value', { x: 22, y: 18, w: 56, h: 62, src: 'speed', size: 52, weight: 900, font: 'condensed', align: 'c', stc: true, pad: 0 }),
     el('text', { x: 72, y: 66, w: 12, h: 8, text: 'km/h', size: 5, color: '#7c8aa0', align: 'l' }),
     el('sign', { x: 3, y: 22, w: 17, h: 38 }),
@@ -86,19 +86,19 @@ const out = (d) => {
   out(d);
 })();
 
-// 4) Renn-Cockpit quer: Drehzahlmesser links mit Schaltleiste, riesiges Tempo, Werte-Kacheln, Tempo-Schild
+// 4) Renn-Cockpit quer: Rundinstrument links mit Tempo-Leiste, riesiges Tempo, Werte-Kacheln, Tempo-Schild
 (() => {
   const d = D.blank('Renn Cockpit'); d.aspect = 2.1667; d.bg.color = '#02030a';
   d.bg.grad = 'radial-gradient(ellipse at 30% 40%,#0c1a3a 0%,#050a18 55%,#02030a 100%)';
   const gh = 82, gw = gh / 2.1667, gx = 2, gy = 14;
   d.els.push(
-    el('bar', { x: 22, y: 3, w: 56, h: 5.5, src: 'rpm', min: 0, max: 15000, color: '#ff4a1c', grad: '#2bd96b,#a6e22e,#ffd23c,#ff7a1c,#ff2b1c', bg: '#12182a', radius: 30, segs: 24, stc: false, limitMark: false }),
+    el('bar', { x: 22, y: 3, w: 56, h: 5.5, src: 'kmh', min: 0, max: 240, color: '#ff4a1c', grad: '#2bd96b,#a6e22e,#ffd23c,#ff7a1c,#ff2b1c', bg: '#12182a', radius: 30, segs: 24, stc: false, limitMark: false }),
     el('rect', { x: gx - 0.9, y: gy - 1.9, w: gw + 1.8, h: gh + 3.8, shape: 'circle', color: '#050a18', rgrad: '#16346a,#07122a', border: 1.6, bgrad: '#f4f7fb,#6b7380,#dfe4ec,#3f4552,#f4f7fb,#6b7380,#dfe4ec,#3f4552,#f4f7fb', drop: true, inner: '#2a6bff55', ins: 4 }),
-    el('arc', { x: gx + 1.9, y: gy + 4, w: gw - 3.8, h: gh - 8, src: 'rpm', min: 0, max: 15000, a0: -130, a1: 110, thick: 5.5, color: '#2f8bff', grad: '#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff7a1c,#ff2b1c', bg: '#0f1a33', glow: '#2a8bff', gs: 0.9, dim: 0.14 }),
-    el('dial', { x: gx + 3.4, y: gy + 7, w: gw - 6.8, h: gh - 14, min: 0, max: 15, step: 1, minor: 4, a0: -130, a1: 110, color: '#e4eeff', size: 3.2, lim: false, red: 12, band: [[12, 15, '#ff3b30']], italic: true }),
-    el('needle', { x: gx + 1.9, y: gy + 4, w: gw - 3.8, h: gh - 8, src: 'rpm', min: 0, max: 15000, a0: -130, a1: 110, len: 80, width: 1.7, color: '#ff4030', glow: '#ff3b2e', gs: 0.8, hub: true, tail: 9 }),
-    el('value', { x: gx + 5, y: gy + 40, w: gw - 10, h: 15, src: 'rpm', size: 11, weight: 800, font: 'condensed', color: '#ffffff', tgrad: '#ffffff,#a9d4ff', glow: '#2a8bff', gs: 0.7 }),
-    el('text', { x: gx + 8, y: gy + 55, w: gw - 16, h: 5, text: 'U/MIN', size: 2.8, color: '#7f93bd', weight: 700 }),
+    el('arc', { x: gx + 1.9, y: gy + 4, w: gw - 3.8, h: gh - 8, src: 'kmh', min: 0, max: 240, a0: -130, a1: 110, thick: 5.5, color: '#2f8bff', grad: '#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff7a1c,#ff2b1c', bg: '#0f1a33', glow: '#2a8bff', gs: 0.9, dim: 0.14 }),
+    el('dial', { x: gx + 3.4, y: gy + 7, w: gw - 6.8, h: gh - 14, min: 0, max: 240, step: 20, minor: 4, a0: -130, a1: 110, color: '#e4eeff', size: 2.6, lim: false, red: 200, band: [[200, 240, '#ff3b30']], italic: true }),
+    el('needle', { x: gx + 1.9, y: gy + 4, w: gw - 3.8, h: gh - 8, src: 'kmh', min: 0, max: 240, a0: -130, a1: 110, len: 80, width: 1.7, color: '#ff4030', glow: '#ff3b2e', gs: 0.8, hub: true, tail: 9 }),
+    el('value', { x: gx + 5, y: gy + 40, w: gw - 10, h: 15, src: 'max', size: 11, weight: 800, font: 'condensed', color: '#ffffff', tgrad: '#ffffff,#a9d4ff', glow: '#2a8bff', gs: 0.7 }),
+    el('text', { x: gx + 8, y: gy + 55, w: gw - 16, h: 5, text: 'MAX KM/H', size: 2.8, color: '#7f93bd', weight: 700 }),
     el('value', { x: gx + 8, y: gy + 63, w: gw - 16, h: 9, src: 'dirname', size: 6, color: '#7f93bd', weight: 700 }),
     el('value', { x: 44, y: 11, w: 36, h: 42, src: 'speed', size: 40, weight: 900, font: 'condensed', stc: true, align: 'c', glow: '#2a8bff', gs: 0.8, shadow: true }),
     el('text', { x: 62, y: 49, w: 18, h: 6, text: 'KM/H', size: 3.6, color: '#7f93bd', weight: 700, align: 'r' }),
@@ -112,7 +112,7 @@ const out = (d) => {
       el('value', { x, y: y + 6.5, w, h: 11, src, unit, dec: dec || 0, size: 8, weight: 800, font: 'condensed', tgrad: '#ffffff,#b8d6ff' })
     );
   };
-  box(44, 57, 'KÜHLMITTEL', 'cool', '°C'); box(63, 57, 'ÖL', 'oil', '°C'); box(82, 57, 'SPANNUNG', 'volt', 'V', 1);
+  box(44, 57, 'FEUCHTE', 'hum', '%'); box(63, 57, 'AUSSEN', 'temp', '°C'); box(82, 57, 'SATELLITEN', 'sat', '');
   box(44, 78, 'TRIP', 'trip', 'km', 1, 22); box(68, 78, 'GESAMT', 'total', 'km', 0, 22);
   d.els.push(el('value', { x: 2, y: 1.5, w: 17, h: 9, src: 'clock', size: 6, weight: 800, font: 'condensed', align: 'l', color: '#9fb4e0' }));
   out(d);
@@ -170,7 +170,7 @@ const out = (d) => {
   // Rechts
   const rx = 75, rw = 23.8;
   const rh = 11.6, rv = { vy: 5, vh: 6, vs: 5, ls: 3 };
-  tile(rx, 20, rw, rh, 'Bordspannung', 'volt', ' V', Object.assign({ icon: 'bat', dec: 1 }, rv));
+  tile(rx, 20, rw, rh, 'Satelliten', 'sat', '', Object.assign({ dec: 0 }, rv));
   tile(rx, 33, rw, rh, 'Tageskilometer', 'day', ' km', Object.assign({ dec: 1, vc: '#38bdf8', lc: '#7aa7d9' }, rv));
   tile(rx, 46, rw, rh, 'Trip-Strecke', 'trip', ' km', Object.assign({ dec: 1 }, rv));
   tile(rx, 59, rw, rh, 'Gesamtkilometer', 'total', ' km', rv);
@@ -199,7 +199,7 @@ const out = (d) => {
       el('rect', { x: gx, y: gy, w: gw, h: gh, shape: 'circle', color: 'transparent', shine: 0.1, border: 0 })
     );
   };
-  gauge(3.8, { src: 'rpm', min: 0, max: 8000, grad: '#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff7a1c,#ff2b1c', glow: '#2a8bff', dmin: 0, dmax: 8, step: 1, minor: 4, red: 6, band: [[6, 8, '#ff3b30']], lab: 'RPM', vs: 'rpm', vsz: 8.6, s2: 'time', u2: ' MIN' });
+  gauge(3.8, { src: 'wind', min: 0, max: 100, grad: '#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff7a1c,#ff2b1c', glow: '#2a8bff', dmin: 0, dmax: 100, step: 10, minor: 4, red: 80, band: [[80, 100, '#ff3b30']], lab: 'WIND', vs: 'wind', vsz: 8.6, s2: 'time', u2: ' MIN' });
   gauge(100 - 3.8 - gw, { src: 'kmh', min: 0, max: 240, grad: '#00d0ff,#1e90ff,#3cff9a,#ffd23c,#ff7a1c,#ff2b1c', glow: '#2a8bff', dmin: 0, dmax: 240, step: 20, minor: 3, red: 200, band: [[200, 240, '#ff3b30']], ls: 2.5, lim: true, lab: 'KM/H', vs: 'speed', vsz: 10, s2: 'trip', u2: ' km', d2: 1 });
   const cx = 40.6, cw = 18.8;
   d.els.push(
@@ -210,8 +210,8 @@ const out = (d) => {
     el('sign', { x: cx + cw / 2 - 5, y: 52, w: 10, h: 21 }),
     el('road', { x: cx, y: 74, w: cw, h: 6, size: 3, color: '#cfe0ff', align: 'c', weight: 700 }),
     el('next', { x: cx + 2, y: 81, w: cw - 4, h: 10, size: 3 }),
-    el('value', { x: 5, y: 90, w: 14, h: 6, src: 'cool', unit: '°C', size: 4, color: '#38bdf8', weight: 800, font: 'condensed', align: 'l' }),
-    el('value', { x: 77, y: 90, w: 12, h: 6, src: 'l100', unit: ' L', dec: 1, size: 4, color: '#38bdf8', weight: 800, font: 'condensed', align: 'r' })
+    el('value', { x: 5, y: 90, w: 14, h: 6, src: 'temp', unit: '°C', size: 4, color: '#38bdf8', weight: 800, font: 'condensed', align: 'l' }),
+    el('value', { x: 77, y: 90, w: 12, h: 6, src: 'hum', unit: ' %', dec: 0, size: 4, color: '#38bdf8', weight: 800, font: 'condensed', align: 'r' })
   );
   out(d);
 })();

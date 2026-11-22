@@ -6,10 +6,10 @@
 
   const SRC = [
     ['speed', 'Tempo (aktuelle Einheit)'], ['kmh', 'Tempo in km/h (fest)'], ['limit', 'Tempolimit'], ['free', 'Spielraum zum Limit'],
-    ['rpm', 'Drehzahl (OBD)'], ['alt', 'Höhe'], ['altnn', 'Höhe über Normalnull'], ['altnap', 'Höhe über Amsterdamer Null'], ['altell', 'Höhe über Ellipsoid'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
+    ['alt', 'Höhe'], ['altnn', 'Höhe über Normalnull'], ['altnap', 'Höhe über Amsterdamer Null'], ['altell', 'Höhe über Ellipsoid'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
     ['max', 'Höchsttempo heute'], ['avg', 'Durchschnitt Trip'], ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip-Kilometer'], ['total', 'Gesamtkilometer'],
     ['clock', 'Uhrzeit'], ['date', 'Datum'], ['gps', 'GPS-Genauigkeit'], ['sat', 'Satelliten'], ['temp', 'Außentemperatur'], ['gust', 'Böen'], ['grade', 'Steigung'],
-    ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'], ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
+    ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], 
   ];
   const TYPES = { text: 'Text', value: 'Wert', bar: 'Balken', arc: 'Bogen', needle: 'Nadel', dial: 'Skala', rect: 'Fläche', image: 'Bild', sign: 'Tempo-Schild', road: 'Straßenname', next: 'Nächstes Limit' };
   const SHOW = [['always', 'immer'], ['over', 'nur zu schnell'], ['near', 'nur knapp drüber'], ['ok', 'nur im Limit'], ['notover', 'nicht zu schnell'], ['hasLimit', 'nur wenn Limit bekannt'], ['noLimit', 'nur ohne Limit']];
@@ -29,7 +29,7 @@
     next: { w: 30, h: 10, size: 4 }
   };
 
-  const DEMO = { speed: 87, kmh: 87, limit: 70, free: -17, rpm: 3200, alt: 78, dir: 45, dirname: 'NO', acc: 1.2, g: 0.2, max: 142, avg: 63, time: '1:42', day: 38.4, trip: 124.7, total: 48210, clock: '18:32', date: 'Sa., 21. Nov.', gps: 5, sat: '17/24', temp: 8, gust: 32, grade: 2.4, cool: 90, oil: 96, thr: 28, load: 42, volt: 14.1, fuel: 63, l100: 6.8 };
+  const DEMO = { speed: 87, kmh: 87, limit: 70, free: -17, alt: 78, dir: 45, dirname: 'NO', acc: 1.2, g: 0.2, max: 142, avg: 63, time: '1:42', day: 38.4, trip: 124.7, total: 48210, clock: '18:32', date: 'Sa., 21. Nov.', gps: 5, sat: '17/24', temp: 8, gust: 32, grade: 2.4, l100: 6.8 };
 
   function blank(name) {
     return { format: 'tacho-design', v: 1, name: name || 'Mein Tacho', aspect: 2, orient: 'land', bg: { color: '#070b12', image: '', fit: 'cover' }, els: [] };
@@ -39,7 +39,6 @@
   const SRCALIAS = {
     geschwindigkeit: 'speed', tempo: 'speed', velocity: 'speed', speed_kmh: 'kmh', kph: 'kmh', speedkmh: 'kmh', gps_speed: 'speed',
     speedlimit: 'limit', speed_limit: 'limit', maxspeed: 'limit', tempolimit: 'limit', limit_kmh: 'limit',
-    drehzahl: 'rpm', revs: 'rpm', engine_rpm: 'rpm', u_min: 'rpm',
     altitude: 'alt', hoehe: 'alt', höhe: 'alt', elevation: 'alt', height: 'alt', alt_nn: 'altnn', msl: 'altnn', alt_nap: 'altnap', nap: 'altnap', ellipsoid: 'altell', alt_ell: 'altell',
     heading: 'dir', bearing: 'dir', course: 'dir', richtung: 'dir', direction: 'dirname', compass: 'dirname', kompass: 'dirname', heading_text: 'dirname', dir_name: 'dirname', cardinal: 'dirname',
     accel: 'acc', acceleration: 'acc', beschleunigung: 'acc', gforce: 'g', g_force: 'g', gkraft: 'g', 'g-kraft': 'g', lateral_g: 'g',
@@ -52,8 +51,6 @@
     temperature: 'temp', temperatur: 'temp', outside_temp: 'temp', aussentemperatur: 'temp', aussentemp: 'temp', outtemp: 'temp',
     gusts: 'gust', boeen: 'gust', böen: 'gust', windgust: 'gust', wind_gust: 'gust', wind_speed: 'wind', windspeed: 'wind', wind_direction: 'winddir', humidity: 'hum', luftfeuchte: 'hum', feels_like: 'feels', weather: 'wx', wetter: 'wx', precipitation: 'rain', regen: 'rain',
     slope: 'grade', steigung: 'grade', incline: 'grade',
-    coolant: 'cool', kuehlmittel: 'cool', water_temp: 'cool', wassertemperatur: 'cool', oil_temp: 'oil', oeltemperatur: 'oil', öl: 'oil', throttle: 'thr', gas: 'thr', engine_load: 'load', voltage: 'volt', spannung: 'volt', bordspannung: 'volt', battery_voltage: 'volt',
-    fuel_level: 'fuel', tank: 'fuel', tankinhalt: 'fuel', consumption: 'l100', verbrauch: 'l100', l_100km: 'l100',
     road: 'roadname', street: 'roadname', strasse: 'roadname', straße: 'roadname', road_ref: 'ref', akku: 'battery', phone_battery: 'battery'
   };
   const TYPEALIAS = { label: 'text', title: 'text', caption: 'text', number: 'value', readout: 'value', gauge_value: 'value', data: 'value', progress: 'bar', progressbar: 'bar', gauge: 'arc', ring: 'arc', pointer: 'needle', hand: 'needle', scale: 'dial', ticks: 'dial', box: 'rect', panel: 'rect', card: 'rect', shape: 'rect', circle: 'rect', img: 'image', picture: 'image', speedlimit: 'sign', limit: 'sign', limitsign: 'sign', street: 'road', roadname: 'road', nextlimit: 'next' };

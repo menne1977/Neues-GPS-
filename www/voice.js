@@ -42,14 +42,6 @@
     ['wind', /wind|böen/],
     ['grade', /steigung|gef[äa]lle/],
     ['free', /reserve|spielraum|luft/],
-    ['rpm', /drehzahl|umdrehungen/],
-    ['cool', /kühlmittel|kühlwasser|motortemperatur/],
-    ['oil', /öltemperatur|öl\b|oil/],
-    ['thr', /gaspedal|drossel|gas\b/],
-    ['load', /motorlast|last\b/],
-    ['volt', /spannung|batterie|bordspannung/],
-    ['fuel', /tankf[üu]llung|tank\b|sprit/],
-    ['l100', /verbrauch/]
   ];
   function tileOf(s) { for (const [id, re] of TILE_WORDS) if (re.test(s)) return id; return null; }
 
@@ -133,7 +125,6 @@
     if (/wie (wird|ist) das wetter|wetter$|wie warm|wie kalt/.test(s)) return { act: 'ask', what: 'wx' };
     if (/wie (viele|weit).*(kilometer|km|gefahren)|tageskilometer$|wie weit bin ich/.test(s)) return { act: 'ask', what: 'day' };
     if (/wie lange (bin ich|fahre ich)|fahrzeit$/.test(s)) return { act: 'ask', what: 'time' };
-    if (/wie viel (drehzahl|umdrehungen)|^drehzahl$/.test(s)) return { act: 'ask', what: 'rpm' };
 
     // --- Zähler zurücksetzen ---
     if (/(zurücksetzen|auf null|null setzen|nullen|neu starten|löschen|reset)/.test(s) || /\bnull\b/.test(s)) {
@@ -208,9 +199,8 @@
     if (/(nach oben|nach vorn|weiter oben|zuerst)/.test(s)) { const id = tileOf(s); if (id) return { act: 'move', id, dir: -1 }; }
     if (/(nach unten|nach hinten|weiter unten|zuletzt)/.test(s)) { const id = tileOf(s); if (id) return { act: 'move', id, dir: +1 }; }
 
-    // --- Einstellungen / OBD / Mikrofon ---
+    // --- Einstellungen / Mikrofon ---
     if (/(einstellungen|menü|menu|optionen)/.test(s)) return { act: 'settings', open: !/(schließ|zu\b)/.test(s) };
-    if (/obd/.test(s)) return { act: 'obd', on: on(s) !== false };
     if (/(bildschirm anlassen)/.test(s)) return { act: 'toggle', key: 'awake', on: true };
 
     // Einzelnes Kachelwort wie "Höhe" = Wert vorlesen

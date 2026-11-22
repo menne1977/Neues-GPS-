@@ -36,7 +36,7 @@ jobs:
       - name: Manifest zur Kontrolle ausgeben
         run: cat android/app/src/main/AndroidManifest.xml
 
-      - name: Android-Plugins einfügen (Satelliten, Sprache, OBD)
+      - name: Android-Plugins einfügen (Satelliten, Sprache)
         run: |
           cp android-overlay/*.java android/app/src/main/java/de/menne/gps/
           mkdir -p android/app/src/main/res

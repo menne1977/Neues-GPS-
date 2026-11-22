@@ -10,7 +10,6 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GnssPlugin.class);
         registerPlugin(VoicePlugin.class);
         registerPlugin(AppCtlPlugin.class);
-        registerPlugin(ObdPlugin.class);
         registerPlugin(PhonePlugin.class);
         super.onCreate(savedInstanceState);
     }

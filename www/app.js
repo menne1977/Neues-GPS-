@@ -4,19 +4,16 @@
   const $ = (s) => document.querySelector(s);
   const CAP = window.Capacitor && window.Capacitor.Plugins || {};
   const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl, Phone = CAP.Phone;
-  const L = window.Limit, Cmd = window.Cmd, OBD = window.OBDC, Design = window.Design, Creator = window.Creator, Places = window.Places;
+  const L = window.Limit, Cmd = window.Cmd, Design = window.Design, Creator = window.Creator, Places = window.Places;
 
   // ---------- Kacheln ----------
   const TILES = [
     ['alt', 'Höhe'], ['dir', 'Richtung'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'], ['max', 'Höchsttempo'], ['avg', 'Ø Tempo Trip'],
     ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip'], ['total', 'Gesamt'], ['clock', 'Uhrzeit'], ['gps', 'GPS-Genauigkeit'],
-    ['sat', 'Satelliten'], ['wx', 'Wetter'], ['wind', 'Böen'], ['grade', 'Steigung'], ['free', 'Spielraum'], ['tank', 'Nächste Tankstelle'], ['stau', 'Autobahn-Meldungen'],
-    ['rpm', 'Drehzahl (OBD)'], ['cool', 'Kühlmittel (OBD)'], ['oil', 'Öltemperatur (OBD)'], ['thr', 'Gaspedal (OBD)'], ['load', 'Motorlast (OBD)'],
-    ['volt', 'Bordspannung (OBD)'], ['fuel', 'Tankfüllung (OBD)'], ['l100', 'Verbrauch (OBD)']
+    ['sat', 'Satelliten'], ['wx', 'Wetter'], ['wind', 'Böen'], ['grade', 'Steigung'], ['free', 'Spielraum'], ['tank', 'Nächste Tankstelle'], ['stau', 'Autobahn-Meldungen']
   ];
   const TNAME = Object.fromEntries(TILES);
   const DEFTILES = ['alt', 'dir', 'acc', 'max', 'day', 'trip', 'total', 'clock', 'tank', 'stau'];
-  const OBD_IDS = ['rpm', 'cool', 'oil', 'thr', 'load', 'volt', 'fuel', 'l100'];
 
   // ---------- Einstellungen ----------
   const DEF = {
@@ -24,7 +21,7 @@
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
     ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '', dSplit: '', scr: {},
-    veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(), obd: { type: 'bt', addr: '', host: '192.168.0.10', port: 35000 },
+    veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(),
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
   let S = load();
@@ -36,7 +33,7 @@
   function load() {
     try {
       const x = JSON.parse(localStorage.getItem('tacho2') || 'null');
-      if (x) { const d = JSON.parse(JSON.stringify(DEF)); return Object.assign(d, x, { obd: Object.assign(d.obd, x.obd), day: Object.assign(d.day, x.day), trip: Object.assign(d.trip, x.trip) }); }
+      if (x) { const d = JSON.parse(JSON.stringify(DEF)); if (Array.isArray(x.tiles)) x.tiles = x.tiles.filter((id) => TNAME[id]); return Object.assign(d, x, { day: Object.assign(d.day, x.day), trip: Object.assign(d.trip, x.trip) }); }
     } catch (e) { /* neu starten */ }
     return JSON.parse(JSON.stringify(DEF));
   }
@@ -269,10 +266,6 @@
     else if (engine.error) setChip('#cNet', 'bad', 'Limit-Server: ' + engine.error);
     else setChip('#cNet', engine.center ? 'ok' : 'warn', engine.center ? 'Online' : 'Lade Straßen …');
   }
-  function setObdChip() {
-    const el = $('#cObd'); el.hidden = !OBD.on && !OBD.err && !S.tiles.some((t) => OBD_IDS.includes(t));
-    setChip('#cObd', OBD.on ? 'ok' : (OBD.err ? 'bad' : 'warn'), OBD.on ? 'OBD' : (OBD.err ? 'OBD: ' + OBD.err.slice(0, 30) : 'OBD aus'));
-  }
 
   function signHTML(lim, el) {
     const sign = el;
@@ -318,7 +311,7 @@
     const fixAge = Date.now() - R.fixT;
     if (!R.fixT || fixAge > 6000) setChip('#cGps', R.lat == null ? 'warn' : 'bad', R.lat == null ? 'GPS sucht …' : 'GPS-Signal weg');
     else setChip('#cGps', R.acc > 30 ? 'warn' : 'ok', 'GPS ±' + Math.round(R.acc) + ' m');
-    setNet(); setObdChip();
+    setNet();
     $('#unit').textContent = uName();
 
     // Schild und Straße
@@ -377,7 +370,6 @@
   // ---------- Kachelwerte ----------
   const km = (x) => fmt(x * (S.unit === 'mph' ? MPH : 1), x < 100 ? 1 : 0);
   function tileData(id) {
-    const o = OBD.vals || {}, ob = (k, d, u) => ({ v: o[k] != null ? fmt(o[k], d) : '–', u, dim: o[k] == null && !OBD.on });
     switch (id) {
       case 'alt': { const av = altVals(); const o = ['nn', 'nap', 'ell'].filter((k) => k !== S.altRef && av[k] != null).map((k) => ALTN[k] + ' ' + fmt(av[k])).join(' · '); return { v: fmt(av.sel), u: 'm ' + ALTN[S.altRef], s: o, dim: av.sel == null }; }
       case 'dir': { const h = headingNow(); return { v: dirName(h), u: h != null ? Math.round(h) + '°' : '', arrow: h, dim: h == null }; }
@@ -398,14 +390,6 @@
       case 'free': { const lim = limitKmh(); return lim == null ? { v: '–', u: uName(), s: 'kein Limit', dim: true } : { v: ((lim - R.speed) >= 0 ? '+' : '−') + Math.abs(Math.round((lim - R.speed) * fu())), u: uName(), s: 'zum Limit' }; }
       case 'tank': { const t = Places.summary().fuel; return t ? { v: fmt(t.d * (S.unit === 'mph' ? MPH : 1), 1), u: dName(), s: t.name } : { v: '–', u: dName(), s: S.online ? 'tippen: suchen' : 'offline', dim: true }; }
       case 'stau': { const t = Places.summary(); return { v: String(t.jams), u: '', s: t.ahead ? t.ahead + ' voraus' : (t.nearest && t.nearest.d != null ? 'nächste ' + Math.round(t.nearest.d) + ' km' : 'tippen: laden'), dim: !t.jams }; }
-      case 'rpm': return ob('rpm', 0, 'U/min');
-      case 'cool': return ob('cool', 0, '°C');
-      case 'oil': return ob('oil', 0, '°C');
-      case 'thr': return ob('thr', 0, '%');
-      case 'load': return ob('load', 0, '%');
-      case 'volt': return ob('volt', 1, 'V');
-      case 'fuel': return ob('fuel', 0, '%');
-      case 'l100': return ob('l100', 1, 'l/100');
       default: return { v: '–', u: '' };
     }
   }
@@ -416,24 +400,22 @@
     let h = '';
     for (const id of S.tiles) {
       const t = tileData(id);
-      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}${id === 'tank' || id === 'stau' ? ' tap' : ''}" data-id="${id}"><div class="l">${TNAME[id].replace(' (OBD)', '')}</div><div class="v">${t.arrow != null || id === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
+      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}${id === 'tank' || id === 'stau' ? ' tap' : ''}" data-id="${id}"><div class="l">${TNAME[id]}</div><div class="v">${t.arrow != null || id === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
     }
     if (box._h !== h) { box.innerHTML = h; box._h = h; }
   }
   setInterval(() => { if (R.lat != null || S.tiles.includes('clock')) renderTiles(); }, 1000);
-  OBD.onChange = () => { setObdChip(); renderTiles(); };
 
 
   // ---------- Werte für eigene Designs ----------
   function getVal(src) {
-    const o = OBD.vals || {}, f = fu(), dk = S.unit === 'mph' ? MPH : 1, none = { n: null, t: '–' };
+    const f = fu(), dk = S.unit === 'mph' ? MPH : 1, none = { n: null, t: '–' };
     const num = (x) => (x == null || !isFinite(x) ? none : { n: x });
     switch (src) {
       case 'speed': return { n: heroShown };
       case 'kmh': return { n: heroShown / f };
       case 'limit': return R.limit && R.limit.v != null ? { n: R.limit.v * f } : { n: null, t: R.limit && R.limit.kind === 'none' ? '∞' : '–' };
       case 'free': { const l = limitKmh(); return l == null ? none : { n: (l - R.speed) * f }; }
-      case 'rpm': case 'cool': case 'oil': case 'thr': case 'load': case 'volt': case 'fuel': case 'l100': return num(o[src]);
       case 'alt': return num(R.alt);
       case 'altnn': return num(altVals().nn);
       case 'altnap': return num(altVals().nap);
@@ -515,7 +497,7 @@
       <h4>Bauteile</h4>${Guide.PARTS.map(([k, l]) => cb('part', k, l, o.parts.includes(k))).join('')}
       ${Guide.GROUPS.map(([g, ks]) => `<h4>${g} <button class="mini" data-all="${ks.join(',')}">alle</button><button class="mini" data-none="${ks.join(',')}">keine</button></h4>` + ks.map((k) => cb('src', k, name(k), o.srcs.includes(k))).join('')).join('')}
       <h4>Farben (optional)</h4><input id="aiCol" placeholder="z. B. blau und orange, schwarzer Hintergrund" value="${Design.esc(o.colors)}">
-      <h4>Weitere Wünsche (optional)</h4><textarea id="aiNotes" style="height:70px" placeholder="z. B. Tempo links groß, Drehzahl rechts">${Design.esc(o.notes)}</textarea>
+      <h4>Weitere Wünsche (optional)</h4><textarea id="aiNotes" style="height:70px" placeholder="z. B. Tempo links groß, Uhrzeit rechts">${Design.esc(o.notes)}</textarea>
       <button class="act pri" data-g="copy">Text erstellen und kopieren</button><button class="act" data-g="show">Text anzeigen</button><button class="act" data-g="x">Schließen</button>
       <textarea id="aiOut" readonly style="display:none;height:35vh;margin-top:8px"></textarea></div>`;
     const read = () => {
@@ -525,7 +507,6 @@
         srcs: q('input[data-grp=src]:checked').map((x) => x.value), parts: q('input[data-grp=part]:checked').map((x) => x.value),
         colors: ov.querySelector('#aiCol').value.trim(), notes: ov.querySelector('#aiNotes').value.trim() };
       r.orient = +r.aspect < 1 ? 'port' : 'land';
-      if (r.parts.includes('rpmgauge') && !r.srcs.includes('rpm')) r.srcs.push('rpm');
       if (r.parts.some((p) => p === 'gauge' || p === 'bar') && !r.srcs.includes('kmh')) r.srcs.push('kmh');
       if (!r.srcs.includes('speed')) r.srcs.unshift('speed');
       S.aiOpt = r; save(true); return r;
@@ -725,7 +706,7 @@
       case 'wx': return R.wx ? `Draußen sind es ${Math.round(R.wx.temperature_2m)} Grad, ${WX[R.wx.weather_code] || ''}.` : 'Das Wetter ist noch nicht geladen.';
       case 'day': return 'Heute ' + km(S.day.dist) + ' ' + (S.unit === 'mph' ? 'Meilen' : 'Kilometer') + '.';
       case 'time': return 'Fahrzeit im Trip: ' + hms(S.trip.mt) + ' Stunden.';
-      default: return TNAME[what].replace(' (OBD)', '') + ': ' + t.v + ' ' + (t.u || '') + '.';
+      default: return TNAME[what] + ': ' + t.v + ' ' + (t.u || '') + '.';
     }
   }
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -739,12 +720,11 @@
       case 'tile': {
         if (a.on && !S.tiles.includes(a.id)) S.tiles.push(a.id);
         if (!a.on) S.tiles = S.tiles.filter((x) => x !== a.id);
-        msg = TNAME[a.id].replace(' (OBD)', '') + (a.on ? ' eingeblendet.' : ' ausgeblendet.');
-        if (a.on && OBD_IDS.includes(a.id) && !OBD.on) msg += ' Dafür den OBD-Adapter in den Einstellungen verbinden.';
+        msg = TNAME[a.id] + (a.on ? ' eingeblendet.' : ' ausgeblendet.');
         break;
       }
       case 'only': S.tiles = []; msg = 'Nur Tempo.'; break;
-      case 'all': S.tiles = TILES.map((t) => t[0]).filter((id) => !OBD_IDS.includes(id) || OBD.on); msg = 'Alle Werte sind sichtbar.'; break;
+      case 'all': S.tiles = TILES.map((t) => t[0]); msg = 'Alle Werte sind sichtbar.'; break;
       case 'default': S.tiles = DEFTILES.slice(); S.theme = 'nacht'; S.accent = DEF.accent; S.hero = 1; S.tsize = 1; msg = 'Standardansicht.'; break;
       case 'move': { const i = S.tiles.indexOf(a.id); if (i < 0) { msg = 'Die Kachel ist nicht sichtbar.'; break; } const j = clamp(i + a.dir, 0, S.tiles.length - 1); S.tiles.splice(j, 0, S.tiles.splice(i, 1)[0]); msg = 'Verschoben.'; break; }
       case 'layout': S.layout = a.id; applyOrient(); msg = a.id === 'land' ? 'Querformat.' : a.id === 'port' ? 'Hochformat.' : 'Automatisch drehen.'; break;
@@ -778,7 +758,6 @@
         if (a.what === 'total') { S.total = 0; msg = 'Gesamtstrecke auf null.'; }
         break;
       case 'settings': if (a.open) openSheet(); else closeSheet(); msg = a.open ? 'Einstellungen.' : 'Geschlossen.'; break;
-      case 'obd': if (a.on) { openSheet('obd'); msg = 'OBD: Adapter wählen und verbinden.'; } else { OBD.disconnect(); msg = 'OBD getrennt.'; } break;
       case 'places': Places.show(a.tab, placesApi); msg = a.tab === 'fuel' ? 'Tankstellen in der Nähe. Antippen startet die Navigation.' : 'Autobahn-Meldungen.'; break;
       case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
       case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
@@ -810,7 +789,6 @@
 
   const chk = (k, label, hint) => `<div class="row"><label>${label}${hint ? `<small>${hint}</small>` : ''}</label><input type="checkbox" data-k="${k}" ${S[k] ? 'checked' : ''}></div>`;
   const sel = (k, label, opts) => `<div class="row"><label>${label}</label><select data-k="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(S[k]) === String(v) ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
-  let obdDevices = [];
   const secFns = {};
   function buildPanel(open) {
     const keep = $('#panel').scrollTop;
@@ -847,13 +825,6 @@
     h += det('data', 'Daten und Sensoren', () => `
       ${chk('online', 'Online gehen', 'Straßen, Limit, Wetter. Aus = nur GPS und Sensoren')}
       ${chk('wxOn', 'Wetter laden')}${chk('satOn', 'GPS-Satelliten lesen')}`);
-    h += det('obd', 'OBD2-Adapter (nur Werte lesen)', () => `
-      <div class="info">Adapter vorher in Android koppeln. Es werden nur Echtzeitwerte gelesen, nichts am Auto geändert.</div>
-      ${sel('obdType', 'Verbindung', [['bt', 'Bluetooth'], ['wifi', 'WLAN']]).replace('data-k="obdType"', 'data-ok="type"').replace(/ selected/g, (m) => m)}
-      <div class="row"><label>Adapter</label><select data-ok="addr">${[['', 'bitte suchen']].concat(obdDevices.map((d) => [d.address, d.name || d.address])).concat(S.obd.addr && !obdDevices.some((d) => d.address === S.obd.addr) ? [[S.obd.addr, S.obd.addr]] : []).map(([v, t]) => `<option value="${v}" ${S.obd.addr === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-      <button class="act" data-do="obdscan">Adapter suchen</button>
-      <button class="act pri" data-do="obdgo">${OBD.on ? 'Trennen' : 'Verbinden'}</button>
-      <div class="info">${OBD.on ? 'Verbunden.' : (OBD.err ? 'Fehler: ' + OBD.err : 'Nicht verbunden.')} Danach OBD-Werte unter „Werte“ einblenden.</div>`);
     h += det('cmd', 'Sprachbefehle und Test', () => `
       <div class="row"><input type="text" id="cmdIn" placeholder="Befehl eintippen, z. B. Thema Neon" style="max-width:none;width:100%"><button class="btn" data-do="cmdgo">▶</button></div>
       <ul class="cmd">${Cmd.HELP.map((x) => `<li>${x}</li>`).join('')}</ul>`);
@@ -887,8 +858,6 @@
       <button class="act" data-do="rday">Tageskilometer auf null</button><button class="act" data-do="rtrip">Trip auf null</button><button class="act" data-do="rmax">Höchsttempo zurücksetzen</button><button class="act" data-do="rall">Alle Einstellungen zurücksetzen</button>`);
     h += `<div class="info">Quellen: OpenStreetMap-Mitwirkende (ODbL) für Straßen und Limits, Open-Meteo für Wetter.</div>`;
     $('#panel').innerHTML = h;
-    // Wert der OBD-Verbindungsart setzen (select mit data-ok)
-    const ot = $('#panel select[data-ok=type]'); if (ot) ot.value = S.obd.type;
     $('#panel').scrollTop = keep;
   }
 
@@ -903,8 +872,7 @@
       if (k === 'veh') { engine.cur = null; updateLimit(); }
     } else if (t.dataset.tile) {
       const id = t.dataset.tile; if (t.checked) { if (!S.tiles.includes(id)) S.tiles.push(id); } else S.tiles = S.tiles.filter((x) => x !== id);
-    } else if (t.dataset.ok) { S.obd[t.dataset.ok] = t.value; }
-    else if (t.id === 'totalIn') { S.total = Math.max(0, +t.value || 0); toast('Gesamtkilometer: ' + Math.round(S.total)); }
+    } else if (t.id === 'totalIn') { S.total = Math.max(0, +t.value || 0); toast('Gesamtkilometer: ' + Math.round(S.total)); }
     else if (t.id === 'wakeWord') {
       const w = t.value.toLowerCase().replace(/[^a-zäöüß]/g, ''); if (w.length >= 3) { S.wakeWord = w; if (S.wake && Voice) Voice.setWake({ words: wakeWords() }).catch(() => {}); toast('Aktivierungswort: ' + w); } else toast('Mindestens 3 Buchstaben');
     } else return;
@@ -934,8 +902,6 @@
     if (d === 'rtrip') run({ act: 'reset', what: 'trip' });
     if (d === 'rmax') run({ act: 'reset', what: 'max' });
     if (d === 'rall' && confirm('Alle Einstellungen und Zähler löschen?')) { try { localStorage.removeItem('tacho2'); } catch (_) { /* egal */ } location.reload(); }
-    if (d === 'obdscan') OBD.devices().then((l) => { obdDevices = l; const g = l.find((x) => /obd|elm|vlink|veepeak|vgate|konnwei/i.test(x.name || '')); if (g && !S.obd.addr) S.obd.addr = g.address; save(true); buildPanel('obd'); toast(l.length ? l.length + ' Geräte gefunden' : 'Keine gekoppelten Geräte'); }).catch((er) => toast('Bluetooth: ' + ((er && er.message) || er), 5000));
-    if (d === 'obdgo') { if (OBD.on) { OBD.disconnect(); buildPanel('obd'); } else { toast('Verbinde …', 8000); OBD.connect(S.obd).then(() => { toast('OBD verbunden'); buildPanel('obd'); }).catch((er) => { OBD.err = String((er && er.message) || er); toast(OBD.err, 5000); buildPanel('obd'); }); } }
   });
   $('#panel').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cmdIn') { const v = e.target.value; if (v) heard(v); } });
   // Die Enter-Taste im Textfeld des Aktivierungsworts soll nicht neu laden

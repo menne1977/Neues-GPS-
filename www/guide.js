@@ -23,10 +23,9 @@ const Guide = (() => {
     ['Strecke und Zeit', ['trip', 'day', 'total', 'time', 'clock', 'date']],
     ['Ort und Richtung', ['dirname', 'dir', 'alt', 'altnn', 'altnap', 'altell', 'grade', 'roadname', 'ref', 'gps', 'sat', 'lat', 'lon']],
     ['Wetter', ['temp', 'feels', 'gust', 'wind', 'winddir', 'hum', 'rain', 'wx']],
-    ['Motor (OBD-Adapter nötig)', ['rpm', 'cool', 'oil', 'volt', 'thr', 'load', 'fuel', 'l100']],
     ['Handy', ['battery']]
   ];
-  const PARTS = [['sign', 'Tempo-Schild'], ['road', 'Straßenname-Zeile'], ['next', 'Nächstes Limit'], ['gauge', 'Rundinstrument Tempo mit Nadel'], ['rpmgauge', 'Rundinstrument Drehzahl'], ['bar', 'Tempo-Balken mit Limit-Strich']];
+  const PARTS = [['sign', 'Tempo-Schild'], ['road', 'Straßenname-Zeile'], ['next', 'Nächstes Limit'], ['gauge', 'Rundinstrument Tempo mit Nadel'], ['bar', 'Tempo-Balken mit Limit-Strich']];
   const DEF = { orient: 'land', aspect: '2.1667', look: 'real', srcs: ['speed', 'max', 'trip', 'day', 'total', 'time', 'clock', 'dirname', 'alt', 'temp'], parts: ['sign', 'road', 'next', 'bar'], colors: '', notes: '' };
 
   const EXAMPLE = {
@@ -72,7 +71,7 @@ TYPEN ("t") UND IHRE FELDER (nur diese Typen gibt es)
 - "bar": Balken. src, min, max, dir ("r","l","u","d"), color, grad, bg, radius, segs (Anzahl Segmente, 0 = durchgehend), limitMark (Limit-Strich), stc
 - "arc": Bogen eines Rundinstruments. src, min, max, a0, a1 (Grad, 0 = oben, z. B. -130 bis 130), thick, color oder grad, bg, glow, dim
 - "needle": Zeiger. src, min, max, a0, a1 (GLEICH wie der Bogen), len (Prozent des Radius), width (1 bis 2), tail, color, glow, shadow, hub
-- "dial": Skala mit Zahlen. min, max, step, minor, a0, a1, color, size (2 bis 4), red, redColor, band, italic, lim. Wichtig: min und max der Skala sind die angezeigten Zahlen (Drehzahl z. B. 0 bis 8), bei Bogen und Nadel dagegen die echten Werte (0 bis 8000).
+- "dial": Skala mit Zahlen. min, max, step, minor, a0, a1, color, size (2 bis 4), red, redColor, band, italic, lim. Wichtig: min und max der Skala sind die angezeigten Zahlen (Tempo z. B. 0 bis 240), bei Bogen und Nadel dagegen die echten Werte.
 - "rect": Fläche, Kachel, Kreis oder Ring. color oder grad (mit gang) oder rgrad, radius (Prozent), shape:"circle", border, borderColor oder bgrad mit bmode ("conic" für Ringe, "linear" mit bang), shine, inner (mit ins), rglow (mit rgs), drop
 - "sign": rundes Tempolimit-Schild (passt sich selbst an)
 - "road": Name der aktuellen Straße. size, color, font, weight, align
