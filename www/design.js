@@ -69,6 +69,16 @@
     const [x0, y0] = pol(cx, cy, r, a0), [x1, y1] = pol(cx, cy, r, a1);
     return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(a1 - a0) > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
   }
+  // Nur harmlose Zeichen in Farb- und Verlaufstexten (Dateien können von anderen stammen)
+  const csafe = (s) => String(s == null ? '' : s).replace(/[^#0-9a-zA-Z.,%() \-]/g, '').replace(/url/gi, '');
+  const stops = (s) => csafe(s).split(/,(?![^(]*\))/).map((x) => x.trim()).filter(Boolean);
+  const hex2 = (h) => { h = String(h).trim(); const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(h); if (!m) return [255, 255, 255]; let x = m[1]; if (x.length === 3) x = x.replace(/./g, '$&$&'); return [0, 2, 4].map((i) => parseInt(x.substr(i, 2), 16)); };
+  function gradAt(list, t) {
+    const L = list.map(hex2); if (L.length === 1) return `rgb(${L[0]})`;
+    const p = Math.max(0, Math.min(0.9999, t)) * (L.length - 1), i = Math.floor(p), k = p - i;
+    return 'rgb(' + L[i].map((c, j) => Math.round(c + (L[i + 1][j] - c) * k)).join(',') + ')';
+  }
+  const lin = (c) => (/gradient/.test(c) ? c : `linear-gradient(${c},${c})`);
   const frac = (n, min, max) => Math.max(0, Math.min(1, (n - min) / ((max - min) || 1)));
   const fmtN = (v, dec, pad) => { let s = (+v).toFixed(dec || 0).replace('.', ','); if (pad) { const [i, f] = s.split(','); s = i.padStart(pad, '0') + (f ? ',' + f : ''); } return s; };
 
@@ -91,20 +101,40 @@
       canvas.style.setProperty('--u', (h / 100) + 'px'); canvas.style.setProperty('--uw', (w / 100) + 'px');
     }
     layout();
-    bg.style.background = d.bg.color;
+    bg.style.background = d.bg.grad && /^(radial|linear|conic)-gradient\([#0-9a-zA-Z.,%() \-]*\)$/.test(d.bg.grad.trim()) && !/url/i.test(d.bg.grad) ? `${d.bg.grad}, ${csafe(d.bg.color)}` : d.bg.color;
     if (d.bg.image) { bg.style.backgroundImage = `url("${d.bg.image}")`; bg.style.backgroundSize = d.bg.fit === 'fill' ? '100% 100%' : (d.bg.fit || 'cover'); bg.style.backgroundPosition = 'center'; bg.style.backgroundRepeat = 'no-repeat'; }
     host.style.background = d.bg.color;
 
+    const tg = (e) => (e.tgrad ? `;background:linear-gradient(180deg,${stops(e.tgrad).join(',')});-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent` : '');
     d.els.forEach((e) => {
       const n = document.createElement('div'); n.className = 'dz-el dz-' + e.t; n.dataset.id = e.id;
       n.style.cssText = `left:${e.x}%;top:${e.y}%;width:${e.w}%;height:${e.h}%;opacity:${e.op};transform:rotate(${e.rot || 0}deg)`;
       let inner = null;
+      const fx = [];
+      if (e.glow) fx.push(`drop-shadow(0 0 calc(var(--u)*${+e.gs || 1.2}) ${csafe(e.glow)})`);
+      if (e.shadow) fx.push('drop-shadow(0 calc(var(--u)*.6) calc(var(--u)*1.1) rgba(0,0,0,.65))');
+      if (fx.length) n.style.filter = fx.join(' ');
       const sizeCss = `font-size:calc(var(--u)*${e.size || 6});color:${e.color};font-family:${FONTS[e.font] || FONTS.sans};font-weight:${e.weight || 600};justify-content:${e.align === 'l' ? 'flex-start' : e.align === 'r' ? 'flex-end' : 'center'}`;
       switch (e.t) {
-        case 'text': n.style.cssText += ';' + sizeCss; n.textContent = e.text; break;
-        case 'value': n.style.cssText += ';' + sizeCss; n.innerHTML = '<span class="v"></span>' + (e.unit ? `<small>${esc(e.unit)}</small>` : ''); inner = n.querySelector('.v'); break;
+        case 'text': n.style.cssText += ';' + sizeCss + tg(e); n.textContent = e.text; break;
+        case 'value': n.style.cssText += ';' + sizeCss + tg(e); n.innerHTML = '<span class="v"></span>' + (e.unit ? `<small>${esc(e.unit)}</small>` : ''); inner = n.querySelector('.v'); break;
         case 'road': n.style.cssText += ';' + sizeCss; n.innerHTML = '<span class="v"></span>'; inner = n.querySelector('.v'); break;
-        case 'rect': n.style.background = e.color; n.style.borderRadius = e.radius + '%'; if (e.border) n.style.border = `calc(var(--u)*${e.border}) solid ${e.borderColor}`; break;
+        case 'rect': {
+          const fill = e.rgrad ? `radial-gradient(circle at 35% 25%,${stops(e.rgrad).join(',')})` : e.grad ? `linear-gradient(${+e.gang || 180}deg,${stops(e.grad).join(',')})` : e.color;
+          n.style.borderRadius = e.shape === 'circle' ? '50%' : e.radius + '%';
+          if (e.border && e.bgrad) {
+            const conic = e.bmode !== 'linear';
+            n.style.border = `calc(var(--u)*${e.border}) solid transparent`;
+            n.style.background = `${lin(fill)} padding-box, ${conic ? `conic-gradient(from ${+e.bang || 0}deg,${stops(e.bgrad).join(',')})` : `linear-gradient(${+e.bang || 135}deg,${stops(e.bgrad).join(',')})`} border-box`;
+          } else { n.style.background = fill; if (e.border) n.style.border = `calc(var(--u)*${e.border}) solid ${e.borderColor}`; }
+          const sh = [];
+          if (e.inner) sh.push(`inset 0 0 calc(var(--u)*${+e.ins || 3}) ${csafe(e.inner)}`);
+          if (e.rglow) sh.push(`0 0 calc(var(--u)*${+e.rgs || 2}) ${csafe(e.rglow)}`);
+          if (e.drop) sh.push('0 calc(var(--u)*.8) calc(var(--u)*2) rgba(0,0,0,.6)');
+          if (sh.length) n.style.boxShadow = sh.join(',');
+          if (e.shine) { const s = document.createElement('i'); s.style.cssText = `position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,${+e.shine}) 0%,rgba(255,255,255,0) 48%)`; n.appendChild(s); }
+          break;
+        }
         case 'image': if (e.img) n.style.cssText += `;background:url("${e.img}") center/${e.fit === 'fill' ? '100% 100%' : (e.fit || 'contain')} no-repeat`; break;
         case 'sign': n.innerHTML = '<div class="sign dz-sign"><span></span></div>'; break;
         case 'next': n.innerHTML = '<div class="dz-next"><div class="sign"><span></span></div><b></b></div>'; n.style.fontSize = `calc(var(--u)*${e.size || 4})`; break;
@@ -119,17 +149,28 @@
           svg.setAttribute('viewBox', '0 0 100 100'); svg.setAttribute('preserveAspectRatio', 'none'); svg.style.cssText = 'width:100%;height:100%;overflow:visible';
           if (e.t === 'arc') {
             const r = 50 - e.thick / 2;
+            if (e.grad) {
+              const st = stops(e.grad), N = e.n || 64, span = e.a1 - e.a0; let p = '';
+              for (let i = 0; i < N; i++) { const a = e.a0 + span * i / N, b = e.a0 + span * (i + 0.86) / N; p += `<path class="s" d="${arcPath(50, 50, r, a, b)}" fill="none" stroke="${gradAt(st, (i + 0.5) / N)}" stroke-width="${e.thick}"/>`; }
+              svg.innerHTML = `<path d="${arcPath(50, 50, r, e.a0, e.a1)}" fill="none" stroke="${e.bg}" stroke-width="${e.thick + 1}" stroke-linecap="round" opacity=".55"/><g class="gs">${p}</g>`;
+            } else
             svg.innerHTML = `<path d="${arcPath(50, 50, r, e.a0, e.a1)}" fill="none" stroke="${e.bg}" stroke-width="${e.thick}" stroke-linecap="round"/><path class="a" d="${arcPath(50, 50, r, e.a0, e.a0 + 0.01)}" fill="none" stroke="${e.color}" stroke-width="${e.thick}" stroke-linecap="round"/>`;
           } else if (e.t === 'needle') {
-            svg.innerHTML = `<g class="g"><line x1="50" y1="50" x2="50" y2="${50 - 50 * e.len / 100}" stroke="${e.color}" stroke-width="${e.width}" stroke-linecap="round"/></g>${e.hub ? `<circle cx="50" cy="50" r="${e.width * 1.8}" fill="${e.color}"/>` : ''}`;
+            const tip = 50 - 50 * e.len / 100, hw = e.width * 0.8, tail = e.tail == null ? 7 : e.tail;
+            const body = e.style === 'line' ? `<line x1="50" y1="${50 + tail}" x2="50" y2="${tip}" stroke="${e.color}" stroke-width="${e.width}" stroke-linecap="round"/>`
+              : `<path d="M${50 - hw} ${50 + tail * 0.6}L${50 - hw * 0.28} ${tip + 2}L50 ${tip}L${50 + hw * 0.28} ${tip + 2}L${50 + hw} ${50 + tail * 0.6}Z" fill="${e.color}"/>`;
+            const hub = e.hub ? `<defs><radialGradient id="hg${e.id}" cx="35%" cy="30%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#9aa6b8"/><stop offset="1" stop-color="#2a3140"/></radialGradient></defs><circle cx="50" cy="50" r="${e.width * 2.4}" fill="url(#hg${e.id})" stroke="#0b0f18" stroke-width=".6"/><circle cx="50" cy="50" r="${e.width * 0.9}" fill="${e.color}"/>` : '';
+            svg.innerHTML = `<g class="g">${body}</g>${hub}`;
           } else {
             let g = ''; const total = Math.max(1, Math.round((e.max - e.min) / e.step));
             for (let i = 0; i <= total; i++) {
               const a = e.a0 + (e.a1 - e.a0) * i / total, [x0, y0] = pol(50, 50, 47, a), [x1, y1] = pol(50, 50, 40, a), [tx, ty] = pol(50, 50, 31, a);
-              g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${e.color}" stroke-width="1.2" stroke-linecap="round"/>`;
-              g += `<text x="${tx}" y="${ty}" fill="${e.color}" font-size="${e.size * 2.2}" text-anchor="middle" dominant-baseline="central" font-family="${FONTS[e.font] || FONTS.sans}" font-weight="600">${Math.round(e.min + (e.max - e.min) * i / total)}</text>`;
-              if (i < total) for (let k = 1; k <= e.minor; k++) { const a2 = a + (e.a1 - e.a0) / total * k / (e.minor + 1), [m0, n0] = pol(50, 50, 47, a2), [m1, n1] = pol(50, 50, 43.5, a2); g += `<line x1="${m0}" y1="${n0}" x2="${m1}" y2="${n1}" stroke="${e.color}" stroke-opacity=".6" stroke-width=".6"/>`; }
+ const val = e.min + (e.max - e.min) * i / total, cc = e.red != null && val >= e.red ? (e.redColor || '#ff3b30') : e.color;
+              g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${cc}" stroke-width="1.3" stroke-linecap="round"/>`;
+              g += `<text x="${tx}" y="${ty}" fill="${cc}" font-style="${e.italic ? 'italic' : 'normal'}" font-size="${e.size * 2.2}" text-anchor="middle" dominant-baseline="central" font-family="${FONTS[e.font] || FONTS.sans}" font-weight="600">${Math.round(e.min + (e.max - e.min) * i / total)}</text>`;
+              if (i < total) for (let k = 1; k <= e.minor; k++) { const a2 = a + (e.a1 - e.a0) / total * k / (e.minor + 1), [m0, n0] = pol(50, 50, 47, a2), [m1, n1] = pol(50, 50, 43.5, a2); g += `<line x1="${m0}" y1="${n0}" x2="${m1}" y2="${n1}" stroke="${e.red != null && e.min + (e.max - e.min) * (i + k / (e.minor + 1)) / total >= e.red ? (e.redColor || '#ff3b30') : e.color}" stroke-opacity=".7" stroke-width=".6"/>`; }
             }
+            if (e.band) for (const [f0, f1, c] of e.band) g += `<path d="${arcPath(50, 50, 49, e.a0 + (e.a1 - e.a0) * frac(f0, e.min, e.max), e.a0 + (e.a1 - e.a0) * frac(f1, e.min, e.max))}" fill="none" stroke="${csafe(c)}" stroke-width="1.8"/>`;
             svg.innerHTML = g + (e.lim ? '<line class="lm" x1="50" y1="2" x2="50" y2="14" stroke="#ff3b30" stroke-width="2.4" stroke-linecap="round"/>' : '');
           }
           n.appendChild(svg); break;
@@ -161,7 +202,7 @@
             if (e.limitMark) { const lm = api.limitKmh; if (lm != null && (e.src === 'speed' || e.src === 'kmh')) { const lf = frac(lm * (e.src === 'speed' ? api.fu : 1), e.min, e.max) * 100; m.style.cssText = `position:absolute;background:#fff;${horiz ? `top:0;bottom:0;width:3px;${e.dir === 'r' ? 'left' : 'right'}:calc(${e.dir === 'r' ? lf : 100 - lf}% - 1px)` : `left:0;right:0;height:3px;bottom:calc(${lf}% - 1px)`}`; m.style.display = ''; } else m.style.display = 'none'; } else m.style.display = 'none';
             break;
           }
-          case 'arc': { const v = api.get(e.src), a = e.a0 + (e.a1 - e.a0) * frac(v.n == null ? 0 : v.n, e.min, e.max); n.querySelector('.a').setAttribute('d', arcPath(50, 50, 50 - e.thick / 2, e.a0, Math.max(e.a0 + 0.01, a))); n.querySelector('.a').setAttribute('stroke', col === 'var(--st)' ? getComputedStyle(document.body).getPropertyValue('--st') || e.color : col); break; }
+          case 'arc': if (e.grad) { const v = api.get(e.src), N = e.n || 64, f = frac(v.n == null ? 0 : v.n, e.min, e.max) * N, ss = n.querySelectorAll('.s'), dim = e.dim == null ? 0.16 : e.dim; for (let i = 0; i < ss.length; i++) ss[i].setAttribute('opacity', i + 1 <= f ? 1 : (i < f ? dim + (1 - dim) * (f - i) : dim)); break; } { const v = api.get(e.src), a = e.a0 + (e.a1 - e.a0) * frac(v.n == null ? 0 : v.n, e.min, e.max); n.querySelector('.a').setAttribute('d', arcPath(50, 50, 50 - e.thick / 2, e.a0, Math.max(e.a0 + 0.01, a))); n.querySelector('.a').setAttribute('stroke', col === 'var(--st)' ? getComputedStyle(document.body).getPropertyValue('--st') || e.color : col); break; }
           case 'needle': { const v = api.get(e.src), a = e.a0 + (e.a1 - e.a0) * frac(v.n == null ? 0 : v.n, e.min, e.max); n.querySelector('.g').setAttribute('transform', `rotate(${a.toFixed(1)} 50 50)`); break; }
           case 'dial': { const lm = n.querySelector('.lm'); if (lm) { const l = api.limitKmh; if (l == null) lm.style.display = 'none'; else { lm.style.display = ''; const a = e.a0 + (e.a1 - e.a0) * frac(l * api.fu, e.min, e.max); lm.setAttribute('transform', `rotate(${a.toFixed(1)} 50 50)`); } } break; }
           default: break;
