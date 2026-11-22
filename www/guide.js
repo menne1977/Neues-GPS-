@@ -3,6 +3,7 @@ const Guide = (() => {
   const html = () => `
 <h3>Eigenen Tacho bekommen</h3>
 <ol>
+<li><b>Wie das Bild aussehen:</b> Gib der KI dein Bild und schreibe dazu: „Mache den Tacho so, dass er dem Bild gleicht.“ Der KI-Text sagt ihr schon, wie Verläufe, Leuchten und Metall gehen. Willst du es pixelgenau, lade dein Bild im Creator unter „Hintergrund“ ein. Die KI setzt dann nur die Werte darauf.</li>
 <li><b>Selbst bauen:</b> Einstellungen → Tacho-Designs → „Eigenen Tacho erstellen“. Unten Elemente antippen (+ Wert, + Nadel …), mit dem Finger verschieben, an der Ecke vergrößern, unten Eigenschaften ändern. „Speichern“ legt ihn in der App ab.</li>
 <li><b>Von mir oder einer anderen KI bauen lassen:</b> „KI-Text kopieren“ drücken, in die andere KI einfügen, dein Bild dazu geben und beschreiben, was wo hin soll. Die KI antwortet mit einem Text im JSON-Format. Diesen Text als Datei <code>meinname.tacho.json</code> speichern.</li>
 <li><b>Datei laden:</b> Einstellungen → Tacho-Designs → „Design-Datei laden“. Oder „Text einfügen“, dann musst du keine Datei speichern.</li>
@@ -43,6 +44,30 @@ ERKLÄRUNG DER FELDER
 WERTEQUELLEN für "src" bei value, bar, arc, needle
 ${D.SRC.map(([k, n]) => `- "${k}": ${n}`).join('\n')}
 (Wenn OBD nicht verbunden ist, zeigen die OBD-Werte einen Strich.)
+
+LOOK: GLEICH SO WIE MEIN BILD (sehr wichtig)
+Die App kann mehr als flache Farben. Baue den Tacho so, dass er dem Bild möglichst genau gleicht: Farben, Verläufe, Leuchten, Metall, Glas. Benutze diese zusätzlichen Felder (alle optional):
+- Alle Elemente: "glow":"#2a8bff" (Leuchten) mit "gs":1 (Stärke), "shadow":true (Schlagschatten).
+- Hintergrund: "bg":{"color":"#020409","grad":"radial-gradient(ellipse at 50% 60%,#0d2146 0%,#060d1e 55%,#020409 100%)"}. Auch linear-gradient möglich. Keine Bilder-URLs.
+- "text" und "value": "tgrad":"#ffffff,#9fd0ff" (Zahl mit Farbverlauf von oben nach unten), "glow".
+- "rect" (Flächen, auch Kreise und Ringe): "grad":"#18284a,#0b1426" und "gang":160 (Verlauf mit Winkel), "rgrad":"#fff6a0,#ffd400,#b88a00" (runder Verlauf für Kugeln und Instrumentenflächen), "shape":"circle" (Kreis, dann w und h so wählen, dass es rund ist), "border":2.2 mit "bgrad":"Farbe1,Farbe2,..." (Randverlauf), "bmode":"conic" (Ring herum, für Chrom oder Regenbogen) oder "linear" mit "bang":160, "shine":0.1 (Glasglanz oben), "inner":"#2f7bff66" mit "ins":5 (innerer Schein), "rglow":"#7a5cff66" mit "rgs":2 (Leuchten außen), "drop":true (Schatten).
+- "arc": "grad":"#1e7bff,#00d0ff,#3cff9a,#ffd23c,#ff2b1c" (Farbverlauf entlang des Bogens, ungenutzter Teil wird abgedunkelt, "dim":0.16), dazu "glow". Ohne "grad" ist der Bogen einfarbig.
+- "dial": "red":6 (ab diesem Wert werden Striche und Zahlen rot), "redColor", "band":[[6,8,"#ff3b30"]] (farbiger Streifen am Rand), "italic":true.
+- "needle": spitz zulaufend wie echt, "width":1.6, "tail":10 (Gegengewicht), "glow", "shadow":true, "hub":true (Metallnabe). "style":"line" gibt eine dünne Linie.
+
+REZEPT FÜR EIN ECHT WIRKENDES RUNDINSTRUMENT (gleiche Ausrichtung, mit h = Höhe und w = h geteilt durch aspect):
+1. rect shape:"circle", rgrad für die Instrumentenfläche (dunkelblau zu fast schwarz), border:2.2, bgrad:"#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb,#79808e,#e3e7ee,#3d4350,#f4f7fb", bmode:"conic" (Chromring), drop:true, inner.
+2. arc mit grad und glow, ein wenig kleiner als der Ring (etwa 2 bis 4 Prozent Rand).
+3. dial etwas kleiner als der Bogen, mit red und band für den roten Bereich.
+4. needle mit denselben x, y, w, h, min, max, a0, a1 wie der Bogen, Farbe kräftig rot oder orange, glow, tail.
+5. Mittelscheibe: rect shape:"circle" mit rgrad (zum Beispiel gelb oder dunkel), rglow, shine:0.4, darauf text für die Beschriftung und value für die Zahl.
+6. Zum Schluss ein rect shape:"circle", color:"transparent", shine:0.1 in voller Instrumentengröße als Glasscheibe.
+Rahmen um das Ganze: rect mit Rundung, border:1.3, bgrad mit Regenbogenfarben und bmode:"conic", rglow.
+Kacheln: rect mit grad, border:0.6, bgrad mit bmode:"linear", shine:0.07, drop:true; Beschriftung klein und gedämpft, Zahl groß mit tgrad.
+Wenn ich ein Bild beschreibe oder mitgebe: übernimm Farben, Reihenfolge und Anordnung genau und benutze lieber zu viel Verlauf und Leuchten als flache Farben.
+
+EXAKTES BILD ALS HINTERGRUND (wenn ich das möchte)
+Dann lasse "bg.image" leer und setze nur die Werte-Elemente (value, needle, arc, sign, road …) genau auf die passenden Stellen des Bildes. Ich lade das Bild danach im Creator unter „Hintergrund“ ein, der Tacho sieht dann genau aus wie das Bild und die echten Werte laufen darüber. Gib in diesem Fall auch das Seitenverhältnis des Bildes als "aspect" an.
 
 REGELN
 - Nichts darf sich unabsichtlich überdecken. Texte brauchen genug Höhe: h mindestens etwa size mal 1.3.
