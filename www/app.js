@@ -231,13 +231,20 @@
   }
 
   // ---------- Online-Daten ----------
-  let wxPos = null, wxT = 0, netBusy = false;
+  let wxPos = null, wxT = 0, netBusy = false, qBusy = false, qT = 0;
   async function fetchStuff() {
     if (!S.online || R.lat == null) return;
     const now = Date.now();
     if (engine.needFetch(R.lat, R.lon, false, R.speed)) {
-      const ok = await engine.fetchRoads(R.lat, R.lon, (u, o) => fetch(u, o));
+      const ok = await engine.fetchRoads(R.lat, R.lon, (u, o) => fetch(u, o), (Date.now() - R.headT < 5000) ? R.heading : null);
       R.netOk = ok; if (ok) { updateLimit(); render(); } setNet();
+    }
+    // Zweite Karte als Schnellhilfe: Straßenname über Nominatim, solange die Straßendaten noch laden
+    if (!R.road && !qBusy && now - qT > 4000 && (R.fixT && now - R.fixT < 6000)) {
+      qBusy = true; qT = now;
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=17&lat=${R.lat}&lon=${R.lon}`, { headers: { 'Accept-Language': 'de' } })
+        .then((r) => r.json()).then((j) => { const a = j.address || {}; R.qname = a.road || a.pedestrian || a.residential || ''; R.qT = Date.now(); if (!R.road) render(); })
+        .catch(() => {}).finally(() => { qBusy = false; });
     }
     if (now - S.countryT > 86400000 && !netBusy) {
       netBusy = true; S.countryT = now;
@@ -257,7 +264,7 @@
       } catch (e) { wxT = now - 14 * 60000; }
     }
   }
-  setInterval(() => { if (R.lat != null) fetchStuff(); }, 5000);
+  setInterval(() => { if (R.lat != null) fetchStuff(); }, 1500);
   setInterval(() => { if (S.online && (R.lat != null || S.lp) && (S.tiles.includes('tank') || S.tiles.includes('stau') || Places.P.open)) placesApi.refresh(false); }, 10000);
   setTimeout(() => { if (S.online && (R.lat != null || S.lp)) placesApi.refresh(false); }, 1500);
 
@@ -324,7 +331,7 @@
     else if (R.limit.kind === 'none') cap.textContent = 'kein Limit';
     else if (R.limit.kind === 'default') cap.textContent = 'geschätzt';
     else cap.textContent = R.limit.note && /zeit/.test(R.limit.src) ? 'zeitabhängig' : 'Schild';
-    $('#roadname').textContent = R.road ? (R.road.name || R.road.ref || '') : '';
+    $('#roadname').textContent = R.road ? (R.road.name || R.road.ref || '') : ((R.qname && Date.now() - (R.qT || 0) < 20000) ? R.qname : '');
     const meta = [];
     if (R.road) { meta.push(R.road.kind); if (R.road.ref && R.road.name) meta.push(R.road.ref); }
     if (R.limit && R.limit.note) meta.push(R.limit.note);
@@ -446,7 +453,7 @@
       case 'rain': return R.wx ? { n: R.wx.precipitation } : none;
       case 'wx': return R.wx ? { n: null, t: wxText(R.wx.weather_code) } : none;
       case 'ref': return { n: null, t: R.road && R.road.ref ? R.road.ref : '–' };
-      case 'roadname': return { n: null, t: R.road ? (R.road.name || R.road.ref || '–') : '–' };
+      case 'roadname': return { n: null, t: R.road ? (R.road.name || R.road.ref || '–') : ((R.qname && Date.now() - (R.qT || 0) < 20000) ? R.qname : '–') };
       case 'battery': return R.batt != null ? { n: R.batt } : none;
       case 'lat': return R.lat != null ? { n: null, t: R.lat.toFixed(5) } : none;
       case 'lon': return R.lon != null ? { n: null, t: R.lon.toFixed(5) } : none;

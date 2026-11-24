@@ -221,36 +221,58 @@
     // Abruf bei Bedarf: erste Position, mehr als 180 m vom Mittelpunkt, Daten älter als 15 min oder keine Straße gefunden
     // Radius wächst mit dem Tempo: weniger Abfragen bei schneller Fahrt (Overpass sperrt sonst kurz), trotzdem genug Vorlauf
     needFetch(lat, lon, force, speedKmh) {
+      this.lastSpeed = speedKmh || 0;
       this.want = Math.round(Math.min(2500, Math.max(600, (speedKmh || 0) * 16)));
       if (this.busy && Date.now() - this.lastTry < 15000) return false;
       const now = Date.now();
-      if (now - this.lastTry < (this.error ? 20000 : 4000)) return false;
+      if (now - this.lastTry < (this.error ? 8000 : 1500)) return false;
       if (!this.center || force) return true;
-      if (hav(lat, lon, this.center.lat, this.center.lon) > this.radius * 0.5) return true;
+      if (hav(lat, lon, this.center.lat, this.center.lon) > this.radius * 0.3) return true;
       return now - this.fetchedAt > 15 * 60000;
     }
 
-    async fetchRoads(lat, lon, fetchFn) {
+    // Abfrage über alle Server im Wettlauf: der erste gültige Treffer gewinnt, der nächste Server startet schon nach 1,2 s
+    async fetchRoads(lat, lon, fetchFn, heading) {
       this.busy = true; this.lastTry = Date.now();
-      const rad = this.want || 600; const q = this.query(lat, lon, rad);
-      let lastErr = null;
-      for (let i = 0; i < this.servers.length; i++) {
-        const url = this.servers[(this.rot + i) % this.servers.length];
-        const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const to = setTimeout(() => ctl && ctl.abort(), 9000);
-        try {
-          // Feste Frist per Wettlauf: in der APK wird ein Abbruch nicht immer beachtet
-          const r = await Promise.race([fetchFn(url + '?data=' + encodeURIComponent(q), ctl ? { signal: ctl.signal } : {}), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 9000))]);
-          clearTimeout(to);
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const j = await r.json();
-          this.load(j, lat, lon); this.radius = rad; this.error = ''; this.rot = (this.rot + i) % this.servers.length; this.busy = false;
-          return true;
-        } catch (e) { clearTimeout(to); lastErr = e; }
+      const rad = this.want || 600;
+      // Mittelpunkt etwas in Fahrtrichtung verschieben: mehr Vorlauf voraus
+      let cLat = lat, cLon = lon;
+      if (heading != null && (this.lastSpeed || 0) > 20) {
+        const sh = rad * 0.3, hr = heading * Math.PI / 180;
+        cLat = lat + Math.cos(hr) * sh / 111320; cLon = lon + Math.sin(hr) * sh / (111320 * Math.cos(lat * Math.PI / 180));
       }
-      this.error = String((lastErr && lastErr.message) || lastErr || 'Fehler').slice(0, 60);
-      this.busy = false;
-      return false;
+      const q = this.query(cLat, cLon, rad);
+      const n = this.servers.length;
+      const one = (k) => new Promise((resolve, reject) => {
+        const url = this.servers[(this.rot + k) % n];
+        const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const to = setTimeout(() => { if (ctl) ctl.abort(); reject(new Error('Zeitüberschreitung')); }, 8000);
+        Promise.resolve(fetchFn(url + '?data=' + encodeURIComponent(q), ctl ? { signal: ctl.signal } : {}))
+          .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then((j) => { clearTimeout(to); if (ctl) setTimeout(() => ctl.abort(), 0); resolve({ j, k }); })
+          .catch((e) => { clearTimeout(to); reject(e); });
+      });
+      try {
+        const res = await new Promise((resolve, reject) => {
+          let fails = 0, started = 0, last = null, done = false;
+          const start = () => {
+            if (done || started >= n) return;
+            const k = started++;
+            one(k).then((r) => { if (!done) { done = true; resolve(r); } }).catch((e) => {
+              last = e; fails++;
+              if (fails >= n && !done) reject(last); else if (!done) start();
+            });
+            if (started < n) setTimeout(() => { if (!done) start(); }, 1200);
+          };
+          start();
+        });
+        this.load(res.j, cLat, cLon); this.radius = rad; this.error = ''; this.rot = (this.rot + res.k) % n; this.busy = false;
+        return true;
+      } catch (e) {
+        this.error = String((e && e.message) || e || 'Fehler').slice(0, 60);
+        this.busy = false;
+        return false;
+      }
     }
 
     // Beste Straße für Position und Fahrtrichtung
