@@ -23,3 +23,6 @@ Datenquellen: OpenStreetMap-Mitwirkende (ODbL), Open-Meteo. Nur für den private
 ## Eigene Tachos
 Siehe `DESIGN-FORMAT.md`. Beispiele in `designs/`. Creator in der App: Einstellungen → Tacho-Designs.
 Weitere Funktionen: Tankstellen und Autobahn-Stau (⛽), Split-Bildschirm (◫), Steuerung anderer Apps per Sprache (Bedienungshilfe nötig).
+
+## Navi (eingebaut)
+Der 🧭-Knopf öffnet das eigene Navi: Ziel suchen, Route mit Ansagen, Karte (Fahrtrichtung oder Norden oben, verschiebbar), Motorrad-Modus mit Kurven und Landschaft, Vermeiden (Autobahn, Maut, Fähren, Innenstadt), Zuhause/Arbeit/Favoriten, Parken und „Zu Fuß weiter“, Offline-Routen. Im Tacho zeigt ein kleines Fenster Richtung, nächste Abbiegung und Entfernung. Die Navi-Werte (Abbiegung, Entfernung, Straße, Rest, Ankunft) gibt es auch beim Tacho-Erstellen als Quellen. Mehr in der README von GPS-Navi-.

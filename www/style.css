@@ -187,3 +187,45 @@ body.cd #mic svg{width:24px;height:24px}
 .aibox select,.aibox input:not([type]),.aibox #aiCol{width:100%;padding:8px;border-radius:8px;border:1px solid #1c2840;background:#05080d;color:inherit;font-size:14px}
 .aibox .mini{font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid #2a3a58;background:#101826;color:#cfe0ff}
 .aibox .ais{font-size:13px;color:#9aa6b8;margin:0 0 6px}
+
+/* ---- Navi ---- */
+#navmini{position:fixed;left:50%;transform:translateX(-50%);top:max(8px,env(safe-area-inset-top));z-index:6;display:flex;align-items:center;gap:12px;background:#0b1626ee;border:1px solid #2f8bff88;border-radius:18px;padding:8px 16px;color:#fff;box-shadow:0 6px 24px #000a;max-width:92vw}
+#navmini b{font-size:34px;line-height:1;color:#7cc0ff} #navmini #nmDist{font-size:22px;font-weight:800} #navmini #nmStreet{font-size:13px;opacity:.8;max-width:48vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} #navmini small{font-size:13px;opacity:.7}
+#navscreen{position:fixed;inset:0;z-index:12;background:#070b12;color:#fff;display:flex;flex-direction:column;padding:max(10px,env(safe-area-inset-top)) 12px max(10px,env(safe-area-inset-bottom))}
+#nsTop{display:flex;align-items:center;gap:14px;background:#10243f;border-radius:18px;padding:10px 14px} #nsTop b{font-size:52px;line-height:1;color:#7cc0ff;min-width:60px;text-align:center}
+.nsT{flex:1;min-width:0} #nsDist{font-size:34px;font-weight:800} #nsStreet{font-size:16px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nsClose{background:#1b2c4a;border:0;color:#fff;font-size:20px;width:44px;height:44px;border-radius:50%}
+#nsMap{flex:1;min-height:0;width:100%;margin:10px 0;border-radius:18px;background:#0a1220}
+#nsBot{display:flex;align-items:center;gap:10px;justify-content:space-between} #nsBot div{display:flex;flex-direction:column;text-align:center;flex:1} #nsBot b{font-size:22px} #nsBot small{opacity:.65;font-size:12px}
+#nsSearch{flex:1;overflow:auto;padding-top:6px} .nsRow{display:flex;gap:8px;align-items:center}
+#nsQ{flex:1;font-size:18px;padding:12px 14px;border-radius:14px;border:1px solid #2a3a58;background:#0f1a2e;color:#fff;min-width:0}
+.nsG{margin-top:12px} .nsG small{display:block;opacity:.7;margin-bottom:6px;font-size:13px} .nsC{display:flex;flex-wrap:wrap;gap:8px}
+.nsChip{background:#14233d;border:1px solid #2a3a58;color:#cfe0ff;border-radius:999px;padding:9px 14px;font-size:15px} .nsChip.on{background:#2f8bff;border-color:#7cc0ff;color:#fff;font-weight:700}
+#nsRes{margin-top:14px;display:flex;flex-direction:column;gap:8px} .nsHit{text-align:left;background:#10203a;border:1px solid #26385a;border-radius:14px;padding:12px 14px;color:#fff;display:flex;flex-direction:column;gap:3px} .nsHit small{opacity:.7} .nsMsg{opacity:.75;padding:8px 2px}
+#nsLive{display:flex;gap:8px;margin-bottom:8px} #nsLive div{flex:1;background:#0f1a2e;border-radius:14px;padding:8px 6px;text-align:center;display:flex;flex-direction:column} #nsLive b{font-size:22px} #nsLive small{opacity:.65;font-size:11px}
+#navscreen[hidden],#navmini[hidden],#nsSearch[hidden],#nsMap[hidden],#nsBot[hidden],#nsTop[hidden],#nsLive[hidden]{display:none!important}
+#nsBot b{white-space:nowrap} #nsBot .act{flex:1.2}
+#nsHead{margin-bottom:12px} #nsBack{background:#1b2c4a;border:1px solid #2f8bff66;color:#fff;font-size:18px;font-weight:700;padding:14px 18px;border-radius:14px;width:100%;text-align:left}
+#nsQ{display:block;width:100%;box-sizing:border-box;font-size:21px;padding:18px 16px;min-height:62px;border-radius:16px;border:2px solid #2f8bff;background:#0f1a2e;color:#fff}
+#nsGo{display:block;width:100%;margin-top:10px;font-size:19px;padding:16px;min-height:56px;border-radius:16px}
+.nsChip{padding:12px 16px;font-size:16px} #nsBot .act{min-height:52px;font-size:16px}
+#nsClose{width:52px;height:52px;font-size:24px}
+/* Navi: Karte mit Zoom, Orte, Mini-Fenster */
+#nsMapW{position:relative;flex:1;min-height:0;margin:10px 0} #nsMapW #nsMap{position:absolute;inset:0;height:100%;width:100%;margin:0}
+#nsZoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:8px} #nsZoom button{width:50px;height:50px;border-radius:14px;border:1px solid #ffffff44;background:#0b1626d9;color:#fff;font-size:22px} #nsZoom button.on{background:#2f8bff}
+#navmini{align-items:stretch;gap:10px;padding:10px 14px;min-width:min(92vw,360px)} #navmini b#nmArrow{font-size:46px;align-self:center;min-width:50px;text-align:center}
+#navmini .nmT{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center} #navmini #nmDist{font-size:28px} #navmini #nmThen{font-size:13px;color:#9fd0ff;white-space:nowrap}
+#navmini .nmR{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;text-align:right} #navmini .nmR b{font-size:17px} #navmini .nmR small{font-size:12px;opacity:.75}
+#nsThen{font-size:15px;color:#9fd0ff}
+#nsPlaces{margin-top:16px} .nsPl{display:inline-flex;align-items:stretch;margin:0 8px 8px 0} .nsPb{background:#14233d;border:1px solid #2f8bff66;color:#fff;border-radius:14px 0 0 14px;padding:13px 16px;font-size:16px;font-weight:600} .nsPb.off{border-radius:14px;opacity:.7;font-weight:400} .nsPl .nsX{background:#1b2c4a;border:1px solid #2f8bff44;border-left:0;color:#ff8a80;border-radius:0 14px 14px 0;padding:0 13px;font-size:16px}
+.nsHit{flex-direction:row;align-items:stretch;padding:0;overflow:hidden} .nsHitB{flex:1;text-align:left;background:none;border:0;color:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0} .nsHitB small{opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nsSv{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:4px} .nsSv button{background:#1b2c4a;border:0;border-radius:10px;color:#fff;font-size:16px;width:44px;height:34px}
+#navmini{top:calc(max(8px,env(safe-area-inset-top)) + 54px)}
+#nsBot{gap:6px} #nsBot div{min-width:0;flex:1 1 0} #nsBot b{font-size:18px} #nsBot .act{flex:0 0 auto;padding:0 12px;min-height:50px;font-size:15px}
+/* Beenden, Ausrichtung, Offline */
+#navmini #nmEnd{align-self:center;flex:0 0 auto;width:56px;height:56px;border-radius:14px;border:1px solid #ff6b5a99;background:#5a1a16;color:#fff;font-size:24px;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0} #navmini #nmEnd small{font-size:11px;opacity:.9}
+#nsZoom{flex-direction:column;flex-wrap:wrap;max-height:calc(100% - 16px);align-content:flex-end;gap:6px} #nsZoom button{width:46px;height:46px;font-size:18px}
+#nsZoom #nsEnd{background:#7a1f18;border-color:#ff6b5a} #nsZoom #nsCtr.on,#nsZoom #nsZa.on{background:#2f8bff;border-color:#fff}
+#nsBot #nsStop{background:#7a1f18;border-color:#ff6b5a;color:#fff;font-weight:800}
+#nsOff{margin-top:12px}
+#nsBot{flex-wrap:wrap;gap:8px 6px} #nsBot div{flex:1 1 28%;min-width:0} #nsBot b{font-size:20px} #nsBot .act{flex:1 1 44%;min-height:54px;font-size:17px;padding:0 10px}

@@ -20,7 +20,7 @@
     theme: 'nacht', accent: '#3ddc97', layout: 'auto', colsP: 2, colsL: 2, hero: 1, tsize: 1,
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
-    ver: 2, navi: 'google', splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '', dSplit: '', scr: {},
+    ver: 2, navi: 'intern', navVoice: true, splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '', dSplit: '', scr: {},
     veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(),
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
@@ -152,6 +152,7 @@
     S.lp = { lat: R.lat, lon: R.lon };
     updateLimit();
     heroTarget = v * fu();
+    if (window.NavUI) NavUI.onFix();
     render(); save(); fetchStuff();
   }
   // Höhe in drei Bezügen: NN (Normalhöhennull, wie Landkarten), NAP (Amsterdamer Pegel) und Ellipsoid (rohe GPS-Höhe, WGS84)
@@ -455,6 +456,7 @@
       case 'ref': return { n: null, t: R.road && R.road.ref ? R.road.ref : '–' };
       case 'roadname': return { n: null, t: R.road ? (R.road.name || R.road.ref || '–') : ((R.qname && Date.now() - (R.qT || 0) < 20000) ? R.qname : '–') };
       case 'battery': return R.batt != null ? { n: R.batt } : none;
+      case 'navdist': case 'navturn': case 'navstreet': case 'navremain': case 'navdur': case 'naveta': { const v = window.NavUI ? NavUI.vals()[src] : ''; return { n: null, t: v || '–' }; }
       case 'lat': return R.lat != null ? { n: null, t: R.lat.toFixed(5) } : none;
       case 'lon': return R.lon != null ? { n: null, t: R.lon.toFixed(5) } : none;
       default: return none;
@@ -565,13 +567,23 @@
   loadDesigns();
 
   // ---------- Unterwegs, Navigation, andere Apps ----------
-  const NAVI = { google: 'Google Maps', sygic: 'Sygic', geo: 'einer anderen Karten-App', ask: 'Auswahl jedes Mal' };
+  const NAVI = { intern: 'dem eigenen Navi', google: 'Google Maps', sygic: 'Sygic', geo: 'einer anderen Karten-App', ask: 'Auswahl jedes Mal' };
   function navigateTo(o) {
+    if (S.navi === 'intern' && window.NavUI) {
+      if (o.lat != null) return NavUI.start({ lat: o.lat, lon: o.lon, name: o.name || 'Ziel' });
+      if (o.query) return NavUI.go(o.query);
+    }
     const a = Object.assign({ app: S.navi }, o);
     if (AppCtl) return AppCtl.navigate(a).catch((e) => toast('Navigation: ' + ((e && e.message) || e), 5000));
     const url = o.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}&travelmode=driving` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.query || '')}`;
     window.open(url, '_blank');
   }
+  if (window.NavUI) NavUI.init({
+    R, S, toast, save, fetch: (u, o) => fetch(u, o), roads: () => engine.roads, heading: () => headingNow(),
+    live: () => { const av = altVals(), h = headingNow(); return { speed: S.decimals ? fmt(R.speed * fu(), 1) : String(Math.round(R.speed * fu())), unit: uName(), limit: R.limit && R.limit.v != null ? String(Math.round(R.limit.v * fu())) : (R.limit && R.limit.kind === 'none' ? '∞' : '–'), alt: av.sel != null ? Math.round(av.sel) + ' m' : '–', altName: 'Höhe ' + ALTN[S.altRef], dir: h != null ? dirName(h) + ' ' + Math.round(h) + '°' : '–' }; },
+    speak: (t) => { if (Voice) Voice.speak({ text: t, pitch: 1, rate: 1.02, voice: '', volume: S.vol }).catch(() => {}); else if (window.speechSynthesis) { try { speechSynthesis.speak(new SpeechSynthesisUtterance(t)); } catch (e) { /* egal */ } } }
+  });
+  $('#bNav').onclick = () => NavUI.show();
   const placesApi = { navigate: navigateTo, toast, refresh: (force) => Places.ensure(R.lat != null ? { lat: R.lat, lon: R.lon, heading: R.approx ? null : headingNow() } : (S.lp ? { lat: S.lp.lat, lon: S.lp.lon, heading: null } : null), S.fuelKm, !!force) };
   const errMsg = (e) => (e && e.message) || String(e);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -641,7 +653,7 @@
     return '';
   }
   function appAct(a) {
-    if (!AppCtl && a.act !== 'navto') return Promise.resolve('Das geht nur in der APK.');
+    if (!AppCtl && !/^nav/.test(a.act)) return Promise.resolve('Das geht nur in der APK.');
     const ok = (t) => () => t, bad = (t) => (e) => (t ? t : errMsg(e));
     switch (a.act) {
       case 'openapp': return a.navi ? AppCtl.launch({ name: S.navi === 'sygic' ? 'sygic' : 'maps' }).then((r) => 'Ich öffne ' + r.label + '.').catch(bad('Keine Navigations-App gefunden.'))
@@ -654,7 +666,21 @@
       case 'media': return AppCtl.media({ key: a.key }).then(ok({ pause: 'Pause.', play: 'Weiter.', next: 'Nächster Titel.', prev: 'Vorheriger Titel.' }[a.key]));
       case 'sysvol': return AppCtl.volume({ dir: a.up ? 'up' : 'down' }).then(ok(a.up ? 'Lauter.' : 'Leiser.'));
       case 'split': return doSplit(a);
-      case 'navto': navigateTo({ query: a.q }); return Promise.resolve('Navigation nach ' + a.q + ' gestartet.');
+      case 'navto': if (S.navi === 'intern') return NavUI.go(a.q); navigateTo({ query: a.q }); return Promise.resolve('Navigation nach ' + a.q + ' gestartet.');
+      case 'navopt': { const o = NavUI.opts(); const p = Object.assign({}, a.p || {}); if (a.add) p.scenic = o.scenic.includes(a.add) ? o.scenic : o.scenic.concat(a.add); NavUI.setOpt(p); return Promise.resolve(a.say || 'Eingestellt.'); }
+      case 'naviorient': if (a.v === 'center') NavUI.recenter(); else NavUI.setOrient(a.v); return Promise.resolve(a.say);
+      case 'navalt': return NavUI.altRoute();
+      case 'navshare': return NavUI.shareEta();
+      case 'navoffline': return a.name ? NavUI.startOffline(a.name) : NavUI.saveOffline();
+      case 'navavoid': if (a.id === 'all') NavUI.setOpt({ avoid: [] }); else NavUI.setAvoid(a.id, a.on); return Promise.resolve(a.say || 'Eingestellt.');
+      case 'navsave': return NavUI.saveHere(a.kind, a.label);
+      case 'navwalk': return NavUI.walkOn();
+      case 'navtheme': NavUI.setTheme(a.id); return Promise.resolve('Kartenfarbe ' + a.id + '.');
+      case 'navzoom': if (a.d === 'in') NavUI.zoomIn(); else if (a.d === 'out') NavUI.zoomOut(); else NavUI.zoomAuto(); return Promise.resolve('Karte.');
+      case 'navstop': return Promise.resolve(NavUI.stop(true));
+      case 'navinfo': return Promise.resolve(NavUI.info());
+      case 'navrepeat': return Promise.resolve(NavUI.repeat());
+      case 'navshow': NavUI.show(); return Promise.resolve('Navigation.');
       default: return Promise.resolve('');
     }
   }
@@ -740,7 +766,7 @@
     }
   }
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-  const SW_TEXT = { beep: 'Warnton', warnSpeak: 'Warnansage', announce: 'Limit-Ansage', replies: 'Sprachantworten', wake: 'Aktivierungswort', awake: 'Bildschirm anlassen', online: 'Online-Modus', preview: 'Limit-Vorschau', decimals: 'Nachkommastelle', wxOn: 'Wetter', satOn: 'Satelliten', bt: 'Bluetooth-Mikrofon', appCtl: 'Andere Apps per Sprache bedienen' };
+  const SW_TEXT = { beep: 'Warnton', warnSpeak: 'Warnansage', announce: 'Limit-Ansage', replies: 'Sprachantworten', wake: 'Aktivierungswort', awake: 'Bildschirm anlassen', online: 'Online-Modus', preview: 'Limit-Vorschau', decimals: 'Nachkommastelle', wxOn: 'Wetter', satOn: 'Satelliten', bt: 'Bluetooth-Mikrofon', navVoice: 'Navi-Ansagen', appCtl: 'Andere Apps per Sprache bedienen' };
 
   function run(a) {
     let msg = '';
@@ -792,8 +818,8 @@
       case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
       case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
       case 'phone': phoneAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e))); break;
-      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto':
-        if (!['sys', 'media', 'sysvol', 'openapp', 'navto'].includes(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
+      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto': case 'navopt': case 'navstop': case 'navinfo': case 'navrepeat': case 'navshow': case 'navsave': case 'navwalk': case 'navtheme': case 'navzoom': case 'navavoid': case 'naviorient': case 'navoffline': case 'navalt': case 'navshare':
+        if (!['sys', 'media', 'sysvol', 'openapp'].includes(a.act) && !/^nav/.test(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
         appAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e)));
         break;
       default: return;
@@ -848,7 +874,7 @@
     h += det('voice', 'Sprache', () => `
       ${chk('wake', 'Aktivierungswort immer bereit', 'Mikrofon-Knopf lange drücken schaltet auch um')}
       <div class="row"><label>Aktivierungswort</label><input type="text" id="wakeWord" value="${S.wakeWord}" style="width:140px"></div>
-      ${chk('replies', 'Antworten sprechen')}
+      ${chk('replies', 'Antworten sprechen')}${chk('navVoice', 'Navi-Ansagen')}
       <div class="row"><label>Lautstärke</label><input type="range" min="10" max="100" step="5" value="${S.vol}" data-k="vol"></div>
       ${chk('bt', 'Bluetooth-Headset als Mikrofon')}
       <div class="info">Tippe auf 🎙 und sprich, oder sage das Aktivierungswort. Die Erkennung braucht Internet und das deutsche Sprachpaket der Google-App.</div>`);
@@ -878,7 +904,7 @@
       <button class="act" data-do="accopen">Bedienungshilfe prüfen und öffnen</button>
       <div class="row"><label>App für den geteilten Bildschirm<small>${S.splitApp.label ? Design.esc(S.splitApp.label) : 'noch keine gewählt'}</small></label><button class="mv" style="width:auto;padding:0 10px" data-do="appsload">Wählen</button></div>
       <div id="applist" class="applist"></div>
-      ${sel('navi', 'Navigation für Tankstellen', [['google', 'Google Maps'], ['sygic', 'Sygic'], ['geo', 'Andere Karten-App'], ['ask', 'Jedes Mal fragen']])}
+      ${sel('navi', 'Navigation', [['intern', 'Eigenes Navi (in der App)'], ['google', 'Google Maps'], ['sygic', 'Sygic'], ['geo', 'Andere Karten-App'], ['ask', 'Jedes Mal fragen']])}
       <div class="row"><label>Tankstellen-Umkreis (km)</label><input type="number" min="1" max="100" data-k="fuelKm" value="${S.fuelKm}" style="width:80px"></div>
       <div class="info">Geteilter Bildschirm: Knopf ◫ oben oder „Split mit Navigation“. Mit eingeschalteter Bedienungshilfe teilt die App den Bildschirm selbst, sonst öffnet sie die Wunsch-App daneben.</div>`);
     h += det('altsec', 'Höhe', () => `

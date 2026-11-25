@@ -87,6 +87,35 @@
 
     // --- Navigation ---
     if ((m = s.match(/^(navi|navigation|navigationsapp|karten ?app)\s*(auf|ist|mit)?\s*(google|google maps|sygic|andere|fragen|jedes mal)$/))) return { act: 'navi', id: /sygic/.test(m[3]) ? 'sygic' : /google/.test(m[3]) ? 'google' : /andere/.test(m[3]) ? 'geo' : 'ask' };
+    if (/(hier|ich habe|ich hab)( \w+)? geparkt|parkplatz (speichern|merken)|(speichere|merke) (den |meinen )?parkplatz|ich parke hier|hier steht mein auto|auto (hier )?geparkt/.test(s)) return { act: 'navsave', kind: 'park' };
+    if (/^(zum|zu meinem|zurück zum|zurück zu meinem|bring mich zum|bring mich zu meinem|führe mich zum|führe mich zu meinem|weg zum) (auto|parkplatz)$|wo (habe ich (mein auto )?geparkt|steht mein auto)/.test(s)) return { act: 'navto', q: 'auto' };
+    if (/zu fuß weiter|^fußweg$|^zu fuß$|^weiter zu fuß$/.test(s)) return { act: 'navwalk' };
+    if ((m = s.match(/(?:speichere|merke|setze|speicher)\s+(?:diesen ort|diese stelle|das|hier|den standort|meinen standort|den ort)?\s*(?:als|auf)\s+(zuhause|zu hause|arbeit|favorit)(?:\s+(.+))?$/))) return { act: 'navsave', kind: m[1] === 'arbeit' ? 'work' : m[1] === 'favorit' ? 'fav' : 'home', label: m[2] || '' };
+    if (/^(hier (ist|wohne ich|bin ich) zuhause|hier wohne ich|hier ist zu hause)$/.test(s)) return { act: 'navsave', kind: 'home' };
+    if (/^(hier arbeite ich|hier ist (die )?arbeit)$/.test(s)) return { act: 'navsave', kind: 'work' };
+    if ((m = s.match(/^(?:karten ?farbe|karte)\s+(nacht|tag|kontrast|natur|grau)$/))) return { act: 'navtheme', id: m[1] };
+    if (/^(andere route|alternative route|alternative|route ändern|andere strecke|nächste route)$/.test(s)) return { act: 'navalt', say: 'Ich suche eine andere Route.' };
+    if (/^(ankunft teilen|eta teilen|standort teilen|route teilen|meine ankunft teilen)$/.test(s)) return { act: 'navshare', say: 'Ich teile die Ankunft.' };
+    if (/^(?:karte\s+)?(nach norden|norden oben|nordausrichtung|nord oben|karte norden)$/.test(s)) return { act: 'naviorient', v: 'north', say: 'Norden oben.' };
+    if (/^(?:karte\s+)?(fahrtrichtung oben|nach fahrtrichtung|karte drehen|karte mitdrehen|richtung oben)$/.test(s)) return { act: 'naviorient', v: 'heading', say: 'Fahrtrichtung oben.' };
+    if (/^(karte zentrieren|karte mittig|zentrieren|karte zurück|mich zeigen|karte auf mich)$/.test(s)) return { act: 'naviorient', v: 'center', say: 'Karte zentriert.' };
+    if (/^(route|navigation|karte)\s+(offline\s+)?(speichern|herunterladen|laden)$|^(route|navigation) offline$|^offline speichern$/.test(s)) return { act: 'navoffline', say: 'Ich speichere die Route offline.' };
+    if ((m = s.match(/^offline[- ]route\s+(.+)$/))) return { act: 'navoffline', name: m[1], say: 'Ich starte die Offline-Route.' };
+    if ((m = s.match(/^(?:karte\s+)?(zoom|zoome|zoomen)?\s*(rein|näher|vergrößern|raus|weiter weg|verkleinern|automatisch)$/)) && (m[1] || /^(näher|vergrößern|weiter weg|verkleinern)$/.test(m[2]))) return { act: 'navzoom', d: /rein|näher|vergrößern/.test(m[2]) ? 'in' : /automatisch/.test(m[2]) ? 'auto' : 'out' };
+    if ((m = s.match(/^(navi|navigation|route|routing)\s+(für\s+|mit\s+)?(das\s+)?(motorrad|auto|pkw|zu fuß|fuß)$/))) { const v = m[4] === 'motorrad' ? 'motorrad' : /fuß/.test(m[4]) ? 'fuss' : 'auto'; return { act: 'navopt', p: { veh: v }, say: 'Navigation: ' + { motorrad: 'Motorrad', fuss: 'zu Fuß', auto: 'Auto' }[v] + '.' }; }
+    if ((m = s.match(/\b(wenige|wenig|keine|mittlere|mittel|viele|egal)\s+kurven\b/))) { const k = { wenige: 'wenig', wenig: 'wenig', keine: 'wenig', mittlere: 'mittel', mittel: 'mittel', viele: 'viele', egal: 'egal' }[m[1]]; return { act: 'navopt', p: { veh: 'motorrad', curves: k }, say: { wenig: 'Wenig Kurven.', mittel: 'Mittlere Kurven.', viele: 'Viele Kurven.', egal: 'Kurven egal.' }[k] }; }
+    if ((m = s.match(/\b(schnellste|kürzeste|sparsamste|sparsame|längste|gemütliche|ausgewogene|normale)\s+(route|strecke)\b/))) { const k = { schnellste: 'schnell', kürzeste: 'kurz', sparsamste: 'sparsam', sparsame: 'sparsam', längste: 'lang', gemütliche: 'gemuetlich', ausgewogene: 'normal', normale: 'normal' }[m[1]]; return { act: 'navopt', p: { type: k }, say: m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' Route.' }; }
+    if ((m = s.match(/\bdurch\s+(den\s+|die\s+|das\s+)?(wald|wälder|felder|feld|wiesen|wasser|seen|heide)\b/))) { const k = { wald: 'wald', wälder: 'wald', felder: 'felder', feld: 'felder', wiesen: 'felder', wasser: 'wasser', seen: 'wasser', heide: 'heide' }[m[2]]; return { act: 'navopt', add: k, say: 'Landschaft: ' + m[2] + '.' }; }
+    if (/(landschaft (aus|egal)|ohne landschaft)/.test(s)) return { act: 'navopt', p: { scenic: [] }, say: 'Landschaft egal.' };
+    if (/(alles erlauben|nichts vermeiden|vermeiden aus|alle straßen erlauben)/.test(s)) return { act: 'navavoid', id: 'all', on: false, say: 'Alles erlaubt.' };
+    if ((m = s.match(/(autobahn|autobahnen|maut|mautstraßen|mautstrassen|fähre|fähren|innenstadt|stadtzentrum|stadtmitte|zentrum)\s*(vermeiden|meiden|umfahren|erlauben|zulassen)|(ohne|keine|nicht durch(?: die)?)\s+(autobahn|autobahnen|maut|mautstraßen|mautstrassen|fähre|fähren|innenstadt|stadt|stadtzentrum)/))) {
+      const w = m[1] || m[4], id = /autobahn/.test(w) ? 'autobahn' : /maut/.test(w) ? 'maut' : /fähr/.test(w) ? 'faehre' : 'stadt'; const on = !(m[2] && /erlauben|zulassen/.test(m[2]));
+      return { act: 'navavoid', id, on, say: { autobahn: 'Autobahn', maut: 'Mautstraßen', faehre: 'Fähren', stadt: 'Innenstadt' }[id] + (on ? ' wird vermieden.' : ' ist erlaubt.') };
+    }
+    if (/^(beende|beenden|stoppe|stopp|breche|brich|schalte)\s+(die |das )?(navigation|navi|route|zielführung)( ab| aus)?$|^navigation (beenden|stoppen|aus)$/.test(s)) return { act: 'navstop' };
+    if (/wie weit (ist es )?noch|wie lange noch|wann (bin|sind) (ich|wir) da|ankunftszeit|restweg/.test(s)) return { act: 'navinfo' };
+    if (/(wiederhole|noch ?mal|noch einmal|sag).*(ansage|abbiegung|abbiegen|anweisung)|^nächste abbiegung$|^was jetzt$/.test(s)) return { act: 'navrepeat' };
+    if (/^(zeige|zeig|öffne|öffnen)\s+(mir )?(die )?(karte|navigation|navi|route)$/.test(s)) return { act: 'navshow' };
     if ((m = s.match(/^(navigiere|navigation|route|fahre|bring mich|leite mich)\s*(mich )?(nach|zu|zum|zur)\s+(.+)$/))) return { act: 'navto', q: m[4] };
 
     // --- Andere Apps steuern ---
@@ -217,7 +246,7 @@
     'Tageskilometer zurücksetzen', 'Höchstgeschwindigkeit zurücksetzen', 'Aktivierungswort ändern auf Cockpit',
     'Sprachantworten aus', 'Lautstärke 60', 'Online aus', 'Einstellungen',
     'Öffne Spotify', 'Schließe YouTube', 'Zurück', 'Startbildschirm', 'Scrolle nach unten', 'Tippe auf Suche', 'Schreibe Hallo', 'Musik Pause', 'Nächster Titel', 'Lauter',
-    'Navigiere nach Köln Hauptbahnhof', 'Tankstellen', 'Stau', 'Split mit Navigation', 'Split beenden', 'Gesamtkilometer auf 12345', 'Navi Sygic'
+    'Navigiere nach Köln Hauptbahnhof', 'Wie weit noch', 'Navi Motorrad', 'Viele Kurven', 'Kürzeste Route', 'Gemütliche Route durch den Wald', 'Navigation beenden', 'Abbiegung wiederholen', 'Zeige die Karte', 'Karte nach Norden', 'Fahrtrichtung oben', 'Route offline speichern', 'Autobahn vermeiden', 'Ohne Maut', 'Keine Fähren', 'Innenstadt umfahren', 'Alles erlauben', 'Hier geparkt', 'Zurück zum Auto', 'Zu Fuß weiter', 'Navigiere nach Hause', 'Speichere diesen Ort als Arbeit', 'Karte zoom rein', 'Kartenfarbe Tag', 'Tankstellen', 'Stau', 'Split mit Navigation', 'Split beenden', 'Gesamtkilometer auf 12345', 'Navi Sygic'
   ];
 
   const api = { parse, num, tileOf, HELP, COLORS, THEMES };

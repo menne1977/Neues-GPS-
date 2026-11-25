@@ -9,7 +9,7 @@
     ['alt', 'Höhe'], ['altnn', 'Höhe über Normalnull'], ['altnap', 'Höhe über Amsterdamer Null'], ['altell', 'Höhe über Ellipsoid'], ['dir', 'Richtung in Grad'], ['dirname', 'Richtung als Buchstabe'], ['acc', 'Beschleunigung'], ['g', 'G-Kraft'],
     ['max', 'Höchsttempo heute'], ['avg', 'Durchschnitt Trip'], ['time', 'Fahrzeit Trip'], ['day', 'Tageskilometer'], ['trip', 'Trip-Kilometer'], ['total', 'Gesamtkilometer'],
     ['clock', 'Uhrzeit'], ['date', 'Datum'], ['gps', 'GPS-Genauigkeit'], ['sat', 'Satelliten'], ['temp', 'Außentemperatur'], ['gust', 'Böen'], ['grade', 'Steigung'],
-    ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], 
+    ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['navdist', 'Navi: Entfernung bis Abbiegen'], ['navturn', 'Navi: Abbiegepfeil'], ['navstreet', 'Navi: nächste Straße'], ['navremain', 'Navi: Restweg'], ['navdur', 'Navi: Restdauer'], ['naveta', 'Navi: Ankunftszeit'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], 
   ];
   const TYPES = { text: 'Text', value: 'Wert', bar: 'Balken', arc: 'Bogen', needle: 'Nadel', dial: 'Skala', rect: 'Fläche', image: 'Bild', sign: 'Tempo-Schild', road: 'Straßenname', next: 'Nächstes Limit' };
   const SHOW = [['always', 'immer'], ['over', 'nur zu schnell'], ['near', 'nur knapp drüber'], ['ok', 'nur im Limit'], ['notover', 'nicht zu schnell'], ['hasLimit', 'nur wenn Limit bekannt'], ['noLimit', 'nur ohne Limit']];
@@ -29,7 +29,7 @@
     next: { w: 30, h: 10, size: 4 }
   };
 
-  const DEMO = { speed: 87, kmh: 87, limit: 70, free: -17, alt: 78, dir: 45, dirname: 'NO', acc: 1.2, g: 0.2, max: 142, avg: 63, time: '1:42', day: 38.4, trip: 124.7, total: 48210, clock: '18:32', date: 'Sa., 21. Nov.', gps: 5, sat: '17/24', temp: 8, gust: 32, grade: 2.4, l100: 6.8 };
+  const DEMO = { navdist: '250 m', navturn: '⬅', navstreet: 'Hauptstraße', navremain: '12 km', navdur: '18 min', naveta: '14:32', speed: 87, kmh: 87, limit: 70, free: -17, alt: 78, dir: 45, dirname: 'NO', acc: 1.2, g: 0.2, max: 142, avg: 63, time: '1:42', day: 38.4, trip: 124.7, total: 48210, clock: '18:32', date: 'Sa., 21. Nov.', gps: 5, sat: '17/24', temp: 8, gust: 32, grade: 2.4, l100: 6.8 };
 
   function blank(name) {
     return { format: 'tacho-design', v: 1, name: name || 'Mein Tacho', aspect: 2, orient: 'land', bg: { color: '#070b12', image: '', fit: 'cover' }, els: [] };
