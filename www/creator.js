@@ -203,10 +203,10 @@
     };
   }
 
-  function pickFile(accept) {
+  function pickFile(accept, multi) {
     return new Promise((res) => {
-      const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.style.display = 'none';
-      i.onchange = () => { res(i.files[0] || null); i.remove(); };
+      const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = !!multi; i.style.display = 'none';
+      i.onchange = () => { res(multi ? Array.from(i.files) : (i.files[0] || null)); i.remove(); };
       document.body.appendChild(i); i.click();
     });
   }

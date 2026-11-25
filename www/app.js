@@ -3,7 +3,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   const CAP = window.Capacitor && window.Capacitor.Plugins || {};
-  const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl, Phone = CAP.Phone;
+  const Voice = CAP.Voice, Gnss = CAP.Gnss, AppCtl = CAP.AppCtl, Phone = CAP.Phone, DFiles = CAP.DesignFiles;
   const L = window.Limit, Cmd = window.Cmd, Design = window.Design, Creator = window.Creator, Places = window.Places;
 
   // ---------- Kacheln ----------
@@ -476,6 +476,27 @@
     b.classList.add('cd'); const fill = isSplit(); cur = { name, d, fill, m: Design.mount($('#custom'), d, { fill }) };
   }
   let designList = [];
+  // Jedes gespeicherte Design wird zusätzlich in den Ordner Documents/Tacho-Designs geschrieben
+  const mirrorDesign = (d) => (DFiles ? DFiles.save({ name: d.name, text: JSON.stringify(d) }).catch(() => null) : Promise.resolve(null));
+  { const put0 = Design.Store.put; Design.Store.put = async (d) => { const r = await put0(d); mirrorDesign(d); return r; }; }
+  async function exportAllDesigns() {
+    const l = await Design.Store.list();
+    if (!l.length) { toast('Noch keine Designs da', 3000); return; }
+    if (DFiles) { let n = 0; for (const d of l) { if (await mirrorDesign(d)) n++; } toast(n + ' Designs im Ordner „Dokumente/Tacho-Designs“ gespeichert', 6000); return; }
+    for (const d of l) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], { type: 'application/json' })); a.download = d.name + '.tacho.json'; document.body.appendChild(a); a.click(); a.remove(); }
+    toast(l.length + ' Dateien heruntergeladen', 5000);
+  }
+  async function importFolder() {
+    if (DFiles) {
+      const r = await DFiles.list(); let n = 0;
+      for (const f of r.files || []) { try { const t = (await DFiles.read({ file: f })).text; await importText(t, true); n++; } catch (_) { /* weiter */ } }
+      if (n) { toast(n + ' Designs aus dem Ordner geladen', 5000); return; }
+      toast('Ordner leer oder nach Neuinstallation nicht lesbar. Bitte Dateien aus „Dokumente/Tacho-Designs“ wählen.', 7000);
+    }
+    const fs = await Creator.pickFile('.json,application/json', true); if (!fs) return; let n = 0;
+    for (const f of [].concat(fs)) { try { await importText(await f.text(), true); n++; } catch (_) { /* weiter */ } }
+    toast(n + ' Designs geladen', 4000);
+  }
   async function loadDesigns() { try { designList = await Design.Store.list(); } catch (e) { designList = []; } if (!$('#sheet').hidden) buildPanel(); }
   function copyText(t, msg) { const ok = () => toast(msg, 6000); const fb = () => { const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Kopieren nicht möglich, Text unten markieren', 5000); } x.remove(); }; if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, fb); else fb(); }
   // Vor dem Erstellen auswählen, was in den KI-Text soll
@@ -846,9 +867,11 @@
       <button class="act" data-do="gai">KI-Text kopieren (für andere KI)</button>
       <button class="act" data-do="dpaste">Design-Text einfügen (von KI)</button>
       <button class="act" data-do="dload">Design-Datei laden (.tacho.json)</button>
+      <button class="act pri" data-do="dexpall">Alle Tachos in Ordner speichern (Dokumente/Tacho-Designs)</button>
+      <button class="act" data-do="dfolder">Tachos aus Ordner laden</button>
       <button class="act" data-do="dserver">Designs vom Server holen</button>
       ${designList.map((d) => `<div class="tl"><label>${Design.esc(d.name)}</label><button class="mv" style="width:auto;padding:0 8px" data-do="dedit" data-n="${Design.esc(d.name)}">Bearbeiten</button><button class="mv" style="width:auto;padding:0 8px" data-do="dexp" data-n="${Design.esc(d.name)}">Export</button><button class="mv" data-do="ddel" data-n="${Design.esc(d.name)}">✕</button></div>`).join('')}
-      <div class="info">Ein Design ist eine Datei. Du kannst sie laden, ohne die App neu zu bauen. Schicke mir Bilder mit Beschriftung, ich mache daraus Dateien, oder baue selbst im Creator.</div>`);
+      <div class="info">Jeder Tacho wird automatisch auch im Ordner Dokumente/Tacho-Designs gespeichert (bleibt nach Neuinstallation erhalten). Ein Design ist eine Datei. Du kannst sie laden, ohne die App neu zu bauen. Schicke mir Bilder mit Beschriftung, ich mache daraus Dateien, oder baue selbst im Creator.</div>`);
     h += det('apps', 'Apps, Split-Bildschirm, Navigation', () => `
       ${chk('appCtl', 'Andere Apps per Sprache bedienen', 'öffnen, schließen, zurück, tippen, scrollen, schreiben')}
       <button class="act" data-do="phoneperm">Telefon und Kontakte erlauben</button>
@@ -899,6 +922,8 @@
     if (d === 'gguide') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox">' + Guide.html() + '<button class="act pri" data-g="ai">KI-Text kopieren</button><button class="act" data-g="x">Schließen</button></div>'; o.onclick = (ev) => { const g = ev.target.dataset.g; if (g === 'x' || ev.target === o) o.remove(); if (g === 'ai') copyAi(); }; document.body.appendChild(o); }
     if (d === 'gai') copyAi();
     if (d === 'dpaste') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox"><h3>Design-Text einfügen</h3><textarea id="gpaste" placeholder="Hier den Text der KI einfügen"></textarea><button class="act pri" data-g="ok">Laden</button><button class="act" data-g="x">Abbrechen</button></div>'; o.onclick = async (ev) => { const g = ev.target.dataset.g; if (g === 'x') o.remove(); if (g === 'ok') { try { const dd = await importText($('#gpaste').value); o.remove(); toast('Design geladen: ' + dd.name + '. Jetzt oben auswählen.', 6000); buildPanel('designs'); } catch (er) { toast('Das ist kein gültiges Design: ' + errMsg(er), 7000); } } }; document.body.appendChild(o); }
+    if (d === 'dexpall') exportAllDesigns().catch((er) => toast(errMsg(er), 6000));
+    if (d === 'dfolder') importFolder().catch((er) => toast(errMsg(er), 6000));
     if (d === 'dedit') openCreator(t.dataset.n);
     if (d === 'dload') Creator.pickFile('.json,application/json').then(async (f) => { if (!f) return; try { const dd = await importText(await f.text()); toast('Design geladen: ' + dd.name); } catch (er) { toast('Fehler: ' + errMsg(er), 6000); } });
     if (d === 'dserver') { toast('Hole Designs …', 6000); fetchDesigns().then((n) => toast(n ? n + ' Designs geladen' : 'Keine Designs auf dem Server', 4000)).catch((er) => toast('Server: ' + errMsg(er), 6000)); }
