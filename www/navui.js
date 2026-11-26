@@ -125,7 +125,7 @@
   const X = () => Object.assign({ rail: 'unsicher', jam: 'frage', prev: 'an', prevAuto: 'an', off: 'an', snap: 'an', cam: 'aus' }, A.S.navX || {});
   function setX(patch) { A.S.navX = Object.assign(X(), patch); persist(); renderOpts(); return 'Eingestellt.'; }
   function setSpeech(patch) { A.S.navSpeech = Object.assign(speech(), patch); persist(); renderOpts(); return 'Eingestellt.'; }
-  const fold = () => Object.assign({ route: false, look: false, map: false, voice: false, extra: false, here: false }, A.S.navFold || {});
+  const fold = () => Object.assign({ dir: false, route: false, look: false, map: false, voice: false, extra: false, here: false }, A.S.navFold || {});
   function optSummary(o) {
     const t = [OPT.veh.find((x) => x[0] === o.veh)[1]];
     if (o.veh === 'motorrad' && o.curves !== 'egal') t.push(OPT.curves.find((x) => x[0] === o.curves)[1]);
@@ -145,8 +145,14 @@
       + sec('look', 'Anzeige und Ansage', esc([LOOK.style.find((x) => x[0] === l.style)[1], LOOK.size.find((x) => x[0] === l.size)[1], 'Ansage ' + LOOK.ann.find((x) => x[0] === String(l.ann))[1], LOOK.dock.find((x) => x[0] === l.dock)[1]].join(' · ')), lk)
       + sec('voice', 'Stimme', esc((MODES[speech().mode] || MODES.normal).n + ' · ' + ((N.voices || []).find((v) => v.name === speech().voice) || { label: 'Standard-Stimme' }).label), voiceHTML())
       + sec('extra', 'Warnungen und Extras', esc([XO.rail.find((x) => x[0] === X().rail)[1], XO.jam.find((x) => x[0] === X().jam)[1]].join(' · ')), Object.keys(XO).map((k) => `<div class="nsG"><small>${XL[k]}</small><div class="nsC">${XO[k].map(([v, t]) => `<button class="nsChip${X()[k] === v ? ' on' : ''}" data-x="${k}" data-v="${v}">${t}</button>`).join('')}</div></div>`).join(''))
+      + sec('dir', 'Kartenausrichtung', esc((orient() === 'north' ? 'Norden' : 'Fahrtrichtung') + ' · ' + DIRS[dirK()][1]), dirHTML())
       + sec('map', 'Kartenfarbe', esc(theme().n), map)
       + (N.route ? '<button class="act pri" data-reroute="1">Route mit diesen Einstellungen neu berechnen</button>' : '');
+  }
+  function dirHTML() {
+    const o = `<div class="nsG"><small>Karte dreht sich</small><div class="nsC"><button class="nsChip${orient() === 'heading' ? ' on' : ''}" data-ori="heading">Mit der Fahrtrichtung</button><button class="nsChip${orient() === 'north' ? ' on' : ''}" data-ori="north">Norden fest</button></div></div>`;
+    const d = `<div class="nsG"><small>Ich fahre auf dem Bildschirm nach …</small><div class="nsC">${Object.keys(DIRS).map((k) => `<button class="nsChip${dirK() === k ? ' on' : ''}" data-dir="${k}">${DIRS[k][2]} ${DIRS[k][1]}</button>`).join('')}</div></div>`;
+    return o + d + '<div class="nsMsg">Auch mit dem Knopf ⬆ auf der Karte umschaltbar.</div>';
   }
   function voiceHTML() {
     loadVoices(); const sp = speech();
@@ -161,6 +167,8 @@
     return `<div class="nvI">${iconOf(st)}</div><div class="nvT"><div class="nvD">${Nav.fmtDist(st.dNext)}</div><div class="nvS">${esc(st.street || st.text || '')}</div>${then}</div>`;
   }
   function onOptClick(e) {
+    const ob = e.target.closest('[data-ori]'); if (ob) { setOrient(ob.dataset.ori); return; }
+    const db = e.target.closest('[data-dir]'); if (db) { setDir(db.dataset.dir); return; }
     const xb = e.target.closest('[data-x]'); if (xb) { setX({ [xb.dataset.x]: xb.dataset.v }); return; }
     const sm = e.target.closest('[data-sm]'); if (sm) { setSpeech({ mode: sm.dataset.sm }); speak('So klinge ich jetzt. In 300 Metern rechts abbiegen.'); return; }
     const sv = e.target.closest('[data-sv]'); if (sv) { setSpeech({ voice: sv.dataset.sv }); speak('So klinge ich jetzt. In 300 Metern rechts abbiegen.'); return; }
@@ -197,16 +205,22 @@
       <div id="nsTop"><div id="nsBan" class="nvBan"></div><button id="nsClose" aria-label="Zurück zum Tacho">✕</button></div>
       <div id="nsSearch"><div class="nsSL"><div id="nsHead"><button id="nsBack" aria-label="Zurück zum Tacho">←</button><b>Wohin?</b><small id="nsGps"></small></div><div class="nsQRow"><input id="nsQ" type="search" placeholder="Adresse, Ort oder Name" autocomplete="off" autocapitalize="words" enterkeyhint="search"><button id="nsGo" class="act pri" aria-label="Ziel suchen">🔍</button></div><div id="nsRes"></div><div id="nsPlaces"></div><div id="nsOff"></div></div><div class="nsSR"><div class="nsSec">Einstellungen</div><div id="nsOpt" class="nsOptBox"></div></div></div>
       <div id="nsPrev" hidden><div class="npHead"><button id="npBack" aria-label="Zurück">←</button><span><b id="npTitle"></b><small id="npSub"></small></span></div><div class="npMapW"><canvas id="npMap"></canvas></div><div class="npSide"><div id="npList"></div><div class="npBtns"><button id="npCancel" class="act">Abbrechen</button><button id="npGo" class="act pri">Los</button></div></div></div>
-      <div id="nsMapW"><canvas id="nsMap"></canvas><div id="nsZoom"><button data-z="in" aria-label="Näher">＋</button><button data-z="out" aria-label="Weiter weg">－</button><button data-z="more" id="nsMore" aria-label="Mehr Knöpfe">☰</button><button data-z="set" aria-label="Einstellungen">⚙</button><div id="nsMoreB"><button data-z="auto" id="nsZa">A</button><button data-z="ori" id="nsOri" aria-label="Kartenausrichtung">🧭</button><button data-z="ctr" id="nsCtr" aria-label="Karte zentrieren">🎯</button><button data-z="off" aria-label="Route offline speichern">💾</button><button data-z="end" id="nsEnd" aria-label="Route beenden">⛔</button><button data-z="col" aria-label="Kartenfarbe">🎨</button><button data-z="car" aria-label="Zurück zum Auto">🚗</button><button data-z="alt" aria-label="Andere Route">🔀</button><button data-z="share" aria-label="Ankunft teilen">📤</button><button data-z="walk" aria-label="Zu Fuß weiter">🚶</button><button data-z="park" aria-label="Hier geparkt">🅿</button></div></div><div id="nsSet" hidden><div class="nsSetH"><b>Einstellungen</b><button id="nsSetX" aria-label="Schließen">✕</button></div><div class="nsOptBox"></div></div></div>
+      <div id="nsMapW"><canvas id="nsMap"></canvas><div id="nsZoom"><button data-z="in" aria-label="Näher">＋</button><button data-z="out" aria-label="Weiter weg">－</button><button data-z="more" id="nsMore" aria-label="Mehr Knöpfe">☰</button><button data-z="rot" id="nsRot" aria-label="Karte drehen: Fahrtrichtung oben, rechts, unten, links">⬆</button><button data-z="set" aria-label="Einstellungen">⚙</button><div id="nsMoreB"><button data-z="auto" id="nsZa">A</button><button data-z="ori" id="nsOri" aria-label="Kartenausrichtung">🧭</button><button data-z="ctr" id="nsCtr" aria-label="Karte zentrieren">🎯</button><button data-z="off" aria-label="Route offline speichern">💾</button><button data-z="end" id="nsEnd" aria-label="Route beenden">⛔</button><button data-z="col" aria-label="Kartenfarbe">🎨</button><button data-z="car" aria-label="Zurück zum Auto">🚗</button><button data-z="alt" aria-label="Andere Route">🔀</button><button data-z="share" aria-label="Ankunft teilen">📤</button><button data-z="walk" aria-label="Zu Fuß weiter">🚶</button><button data-z="park" aria-label="Hier geparkt">🅿</button></div></div><div id="nsSet" hidden><div class="nsSetH"><b>Einstellungen</b><button id="nsSetX" aria-label="Schließen">✕</button></div><div class="nsOptBox"></div></div></div>
+      <div id="nsSpd"><div class="spL"><b id="spLim">–</b></div><div class="spV"><b id="spVal">0</b><small>km/h</small></div></div>
       <div id="nsLive"><div><b id="lvSpeed">0</b><small id="lvUnit">km/h</small></div><div><b id="lvLimit">–</b><small>Limit</small></div><div><b id="lvAlt">–</b><small id="lvAltN">Höhe</small></div><div><b id="lvDir">–</b><small>Richtung</small></div></div>
-      <div id="nsBot"><div><b id="nsRem">–</b><small>Rest</small></div><div><b id="nsEta">–</b><small>Ankunft</small></div><div><b id="nsDur">–</b><small>Dauer</small></div><button id="nsTacho" class="act">Tacho</button><button id="nsStop" class="act">Beenden</button></div>`;
+      <div id="nsBot"><button id="nsSrch" class="nsIc" aria-label="Neues Ziel suchen"><svg viewBox="0 0 24 24" width="30" height="30"><circle cx="10" cy="10" r="6.5" fill="none" stroke="#fff" stroke-width="2.6"/><path d="M15 15l6 6" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/></svg></button><div class="nsBM"><b id="nsDur">–</b><small><span id="nsRem">–</span> · <span id="nsEta">–</span></small></div><button id="nsDots" class="nsIc" aria-label="Menü"><svg viewBox="0 0 24 24" width="30" height="30"><circle cx="6" cy="6" r="3" fill="#fff"/><circle cx="18" cy="6" r="3" fill="#fff"/><circle cx="6" cy="18" r="3" fill="#fff"/><circle cx="18" cy="18" r="3" fill="#fff"/></svg></button></div>
+      <div id="nsMenu" hidden><div class="mnSheet"><div class="mnGrip"></div><div class="mnHead"><b>Navigation</b><button id="nsMenuX" aria-label="Schließen">✕</button></div><div id="mnBody"></div></div></div>`;
     document.body.appendChild(scr);
+    $('nsMapW').appendChild($('nsSpd'));
     const warn = document.createElement('div'); warn.id = 'nvWarn'; warn.hidden = true; warn.onclick = () => { warn.hidden = true; }; document.body.appendChild(warn);
     const ask = document.createElement('div'); ask.id = 'nvAsk'; ask.hidden = true; document.body.appendChild(ask);
     ask.addEventListener('click', (e) => { const b = e.target.closest('[data-jam]'); if (b) { if (b.dataset.jam === 'yes') jamYes(); else jamNo(); } });
     $('npBack').onclick = prevCancel; $('npCancel').onclick = prevCancel; $('npGo').onclick = () => prevGo();
     $('npList').addEventListener('click', (e) => { const b = e.target.closest('[data-alt]'); if (!b || !N.prev) return; N.prev.sel = +b.dataset.alt; N.prev.left = 0; clearInterval(N.prevT); renderPrev(); });
-    $('nsClose').onclick = hide; $('nsBack').onclick = hide; $('nsTacho').onclick = hide; $('nsStop').onclick = () => stop(true);
+    $('nsClose').onclick = hide; $('nsBack').onclick = () => { if (N.srch) { N.srch = false; layout(); draw(); } else hide(); };
+    $('nsSrch').onclick = () => { N.srch = true; layout(); setTimeout(() => $('nsQ').focus(), 50); };
+    $('nsDots').onclick = openMenu; $('nsMenuX').onclick = closeMenu;
+    $('nsMenu').addEventListener('click', onMenu);
     $('nsGo').onclick = () => search($('nsQ').value);
     $('nsQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') search($('nsQ').value); });
     window.addEventListener('popstate', () => { if (N.open) { N.open = false; $('navscreen').hidden = true; layout(); } });
@@ -236,7 +250,7 @@
       else if (z === 'col') { const ks = Object.keys(THEMES); setTheme(ks[(ks.indexOf(A.S.navMap || 'nacht') + 1) % ks.length]); A.toast('Karte: ' + theme().n, 1500); }
       else if (z === 'more') { A.S.navMore = !A.S.navMore; persist(); moreBtns(); }
       else if (z === 'set') { renderOpts(); $('nsSet').hidden = !$('nsSet').hidden; }
-      else if (z === 'ori') setOrient(null); else if (z === 'ctr') recenter(); else if (z === 'off') saveOffline(); else if (z === 'end') stop(true);
+      else if (z === 'rot') setDir(null); else if (z === 'ori') setOrient(null); else if (z === 'ctr') recenter(); else if (z === 'off') saveOffline(); else if (z === 'end') stop(true);
       else if (z === 'car') backToCar(); else if (z === 'alt') altRoute(); else if (z === 'share') shareEta();
       else if (z === 'walk') walkOn(); else if (z === 'park') saveHere('park');
     });
@@ -245,6 +259,35 @@
     renderOpts(); renderPlaces();
   }
 
+  // ---------- Menü (Blatt von unten) ----------
+  const VEH = { auto: 'Auto', motorrad: 'Motorrad', fuss: 'Zu Fuß' };
+  function openMenu() { menuRender(); $('nsMenu').hidden = false; }
+  function closeMenu() { const m = $('nsMenu'); if (m) m.hidden = true; }
+  function menuRender() {
+    const row = (id, ico, t, sub) => `<button class="mnRow" data-m="${id}"><i>${ico}</i><span><b>${t}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span><em>›</em></button>`;
+    const tile = (id, ico, t) => `<button class="mnTile" data-m="${id}"><i>${ico}</i><b>${t}</b></button>`;
+    const dest = N.dest && N.dest.name ? String(N.dest.name).split(',').slice(0, 2).join(',') : '';
+    $('mnBody').innerHTML = row('end', '⛔', 'Route beenden', dest)
+      + row('veh', '🚗', 'Fahrzeugprofile', VEH[opts().veh])
+      + row('dir', '🧭', 'Kartenausrichtung', (orient() === 'north' ? 'Norden fest' : 'Mit Fahrtrichtung') + ' · ' + DIRS[dirK()][1])
+      + row('off', '💾', 'Offline-Route', 'Strecke ohne Internet speichern')
+      + row('alt', '🔀', 'Andere Route', 'Alternative berechnen')
+      + row('share', '📤', 'Ankunft teilen', 'Zeit per Nachricht senden')
+      + row('set', '⚙', 'Einstellungen', 'Route, Anzeige, Stimme, Warnungen')
+      + '<div class="mnSec">Zusatzfunktionen</div><div class="mnTiles">'
+      + tile('rot', DIRS[dirK()][2], 'Karte drehen') + tile('ctr', '🎯', 'Zentrieren') + tile('col', '🎨', 'Kartenfarbe')
+      + tile('car', '🚗', 'Zurück zum Auto') + tile('walk', '🚶', 'Zu Fuß weiter') + tile('park', '🅿', 'Hier geparkt') + tile('tacho', '⏱', 'Zum Tacho') + '</div>';
+  }
+  function onMenu(e) {
+    if (e.target.id === 'nsMenu') { closeMenu(); return; }
+    const b = e.target.closest('[data-m]'); if (!b) return; const m = b.dataset.m;
+    if (m === 'rot') { setDir(null); menuRender(); return; }
+    if (m === 'col') { const ks = Object.keys(THEMES); setTheme(ks[(ks.indexOf(A.S.navMap || 'nacht') + 1) % ks.length]); A.toast('Karte: ' + theme().n, 1500); return; }
+    closeMenu();
+    if (m === 'end') stop(true); else if (m === 'off') saveOffline(); else if (m === 'alt') altRoute(); else if (m === 'share') shareEta();
+    else if (m === 'ctr') recenter(); else if (m === 'car') backToCar(); else if (m === 'walk') walkOn(); else if (m === 'park') saveHere('park'); else if (m === 'tacho') hide();
+    else if (m === 'set' || m === 'veh' || m === 'dir') { const f = fold(); if (m !== 'set') { f[m === 'veh' ? 'route' : 'dir'] = true; A.S.navFold = f; persist(); } renderOpts(); $('nsSet').hidden = false; }
+  }
   function moreBtns() { const on = !!A.S.navMore; $('nsMoreB').hidden = !on; $('nsMore').classList.toggle('on', on); $('nsMore').textContent = on ? '▴' : '☰'; }
   function zoom(f) { if (N.zoomAuto) N.zoomHalf = lastSpan; N.zoomAuto = false; N.zoomHalf = Math.max(40, Math.min(9000, N.zoomHalf * f)); draw(); }
   function pinch(cv) {
@@ -259,7 +302,7 @@
   }
 
   function layout() {
-    const on = !!N.route, pv = !!N.prev && !on;
+    const on = !!N.route && !N.srch, pv = !!N.prev && !N.route;
     $('nsPrev').hidden = !pv; document.getElementById('navscreen').classList.toggle('pv', pv);
     $('nsLive').hidden = !on; $('nsSearch').hidden = on || pv; $('nsMapW').hidden = !on; $('nsBot').hidden = !on; $('nsTop').hidden = !on;
     dock();
@@ -309,6 +352,7 @@
   }
   // ---------- Routenvorschau mit Alternativen (wie Sygic/TomTom) ----------
   function preview(dest, res, o) {
+    N.srch = false;
     clearInterval(N.prevT);
     N.prev = { dest, res, o, sel: 0, left: X().prevAuto === 'aus' ? 0 : 12 };
     show(); layout(); renderPrev();
@@ -319,6 +363,7 @@
     return m;
   }
   function prevGo(i) {
+    N.srch = false;
     const p = N.prev; if (!p) return 'Keine Vorschau offen.';
     if (i != null && p.res.alts[i - 1]) p.sel = i - 1;
     clearInterval(N.prevT); const rt = p.res.alts[p.sel];
@@ -461,6 +506,7 @@
   }
 
   function stop(say) {
+    N.srch = false; closeMenu();
     if (N.prev) return prevCancel();
     N.jamAsk = null; hideAsk();
     const was = !!N.route; N.offRoads = null; N.pan = { x: 0, y: 0 }; N.route = null; N.guide = null; N.st = null; N.dest = null;
@@ -545,7 +591,7 @@
     if (!N.open || !A.live) return;
     const v = A.live();
     $('lvSpeed').textContent = v.speed; $('lvUnit').textContent = v.unit; $('lvLimit').textContent = v.limit;
-    $('lvAlt').textContent = v.alt; $('lvAltN').textContent = v.altName; $('lvDir').textContent = v.dir;
+    $('spVal').textContent = v.speed; $('spLim').textContent = v.limit; $('nsSpd').classList.toggle('nolim', !/\d/.test(String(v.limit))); $('lvAlt').textContent = v.alt; $('lvAltN').textContent = v.altName; $('lvDir').textContent = v.dir;
   }
   function onFix() {
     tick(); if (N.open && !N.route) gpsInfo();
@@ -554,12 +600,19 @@
   }
   // ---------- Flüssige Ansicht: zwischen den GPS-Punkten weiterrechnen ----------
   const orient = () => (A.S.navOrient === 'north' ? 'north' : 'heading');
+  const DIRS = { up: [0, 'Oben', '⬆'], right: [-90, 'Rechts', '➡'], down: [180, 'Unten', '⬇'], left: [90, 'Links', '⬅'] };
+  const dirK = () => (DIRS[A.S.navDir] ? A.S.navDir : 'up');
+  const dirOff = () => DIRS[dirK()][0] * Math.PI / 180;
+  function setDir(v) {
+    const ks = Object.keys(DIRS); A.S.navDir = DIRS[v] ? v : ks[(ks.indexOf(dirK()) + 1) % ks.length]; persist(); N.view = null; updCtr(); draw(); renderOpts();
+    const m = 'Karte: Fahrtrichtung ' + DIRS[dirK()][1].toLowerCase() + '.'; A.toast(m, 1800); return m;
+  }
   function setOrient(v) {
-    A.S.navOrient = v || (orient() === 'north' ? 'heading' : 'north'); persist(); N.view = null; updCtr(); draw();
+    A.S.navOrient = v || (orient() === 'north' ? 'heading' : 'north'); persist(); N.view = null; updCtr(); draw(); renderOpts();
     const m = orient() === 'north' ? 'Karte: Norden oben.' : 'Karte: Fahrtrichtung oben.'; A.toast(m, 1800); return m;
   }
   function recenter() { N.pan = { x: 0, y: 0 }; updCtr(); draw(); return 'Karte zentriert.'; }
-  function updCtr() { const b = $('nsCtr'); if (b) b.classList.toggle('on', Math.abs(N.pan.x) + Math.abs(N.pan.y) > 8); const o = $('nsOri'); if (o) o.textContent = orient() === 'north' ? '⬆N' : '🧭'; }
+  function updCtr() { const b = $('nsCtr'); if (b) b.classList.toggle('on', Math.abs(N.pan.x) + Math.abs(N.pan.y) > 8); const o = $('nsOri'); if (o) o.textContent = orient() === 'north' ? '⬆N' : '🧭'; const r = $('nsRot'); if (r) r.textContent = DIRS[dirK()][2]; }
   let rafOn = false, lastF = 0;
   function frame(ts) {
     if (!(N.open && N.route)) { rafOn = false; return; }
@@ -658,10 +711,10 @@
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = th.bg; g.fillRect(0, 0, W, H);
     if (A.R.lat == null) return; const vp = viewPos(), lat = vp.lat, lon = vp.lon; if (lat == null) return;
     const walk = N.ropts && N.ropts.veh === 'fuss';
-    const north = orient() === 'north', hd = vp.hd, rot = north || hd == null ? 0 : -hd * Math.PI / 180;
+    const north = orient() === 'north', hd = vp.hd, rot = (north || hd == null ? 0 : -hd * Math.PI / 180) + dirOff();
     const speed = A.R.speed || 0, span = N.zoomAuto ? (walk ? Math.max(120, Math.min(350, speed * 9)) : Math.max(220, Math.min(900, speed * 9))) : N.zoomHalf;
     lastSpan = span; $('nsZa').classList.toggle('on', N.zoomAuto);
-    const sc = Math.min(W, H) / 2 / span * 1.15, cx = W / 2 + N.pan.x, cy = H * (north ? 0.55 : 0.68) + N.pan.y, c = Math.cos(lat * Math.PI / 180);
+    const sc = Math.min(W, H) / 2 / span * 1.15, fr = north ? 0.55 : 0.68, dk = dirK(), cx = W * (dk === 'right' ? 1 - fr : dk === 'left' ? fr : 0.5) + N.pan.x, cy = H * (dk === 'up' ? fr : dk === 'down' ? 1 - fr : 0.5) + N.pan.y, c = Math.cos(lat * Math.PI / 180);
     const P2 = (la, lo) => { const x = (lo - lon) * 111320 * c, y = (la - lat) * 111320; const rx = x * Math.cos(rot) - y * Math.sin(rot), ry = x * Math.sin(rot) + y * Math.cos(rot); return [cx + rx * sc, cy - ry * sc]; };
     const reach = span * 3.2 / 111320, near = (la, lo) => Math.abs(la - lat) < reach && Math.abs(lo - lon) < reach / c;
     g.lineCap = 'round'; g.lineJoin = 'round';
@@ -684,7 +737,7 @@
     // Genauigkeit
     const acc = A.R.acc || 0; if (acc > 6) { g.fillStyle = 'rgba(47,139,255,.16)'; g.strokeStyle = 'rgba(47,139,255,.45)'; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, Math.min(Math.max(W, H), acc * sc), 0, 7); g.fill(); g.stroke(); }
     // Fahrzeug oder Fußgänger
-    g.save(); g.translate(cx, cy); if (north && hd != null) g.rotate(hd * Math.PI / 180); g.fillStyle = th.car; g.strokeStyle = '#fff'; g.lineWidth = 2.5;
+    g.save(); g.translate(cx, cy); g.rotate((north && hd != null ? hd * Math.PI / 180 : 0) - dirOff()); g.fillStyle = th.car; g.strokeStyle = '#fff'; g.lineWidth = 2.5;
     if (walk) { g.beginPath(); g.arc(0, 0, 11, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(0, -22); g.lineTo(7, -11); g.lineTo(-7, -11); g.closePath(); g.fill(); g.stroke(); }
     else { g.beginPath(); g.moveTo(0, -17); g.lineTo(12, 13); g.lineTo(0, 7); g.lineTo(-12, 13); g.closePath(); g.fill(); g.stroke(); }
     g.restore();
@@ -702,5 +755,5 @@
   }
 
   function init(api) { A = api; build(); applyLook(); layout(); }
-  root.NavUI = { prevGo, prevCancel, jamYes, jamNo, setX, setSpeech, setLook, look, navState, dock, backToCar, altRoute, shareEta, setOrient, recenter, saveOffline, startOffline, setAvoid: (id, on) => { const o = opts(); const l = on ? (o.avoid.includes(id) ? o.avoid : o.avoid.concat(id)) : o.avoid.filter((x) => x !== id); setOpt({ avoid: l }); return l; }, zoomIn: () => zoom(0.55), zoomOut: () => zoom(1.8), zoomAuto: () => { N.zoomAuto = true; draw(); }, setOpt, opts, setTheme, init, show, hide, go, start, stop, onFix, repeat, info, vals, search, saveHere, walkOn, resolve, places: P, active: () => !!N.route, isOpen: () => N.open };
+  root.NavUI = { prevGo, prevCancel, jamYes, jamNo, setX, setSpeech, setLook, look, navState, dock, backToCar, altRoute, shareEta, setOrient, setDir, recenter, saveOffline, startOffline, setAvoid: (id, on) => { const o = opts(); const l = on ? (o.avoid.includes(id) ? o.avoid : o.avoid.concat(id)) : o.avoid.filter((x) => x !== id); setOpt({ avoid: l }); return l; }, zoomIn: () => zoom(0.55), zoomOut: () => zoom(1.8), zoomAuto: () => { N.zoomAuto = true; draw(); }, setOpt, opts, setTheme, init, show, hide, go, start, stop, onFix, repeat, info, vals, search, saveHere, walkOn, resolve, places: P, active: () => !!N.route, isOpen: () => N.open };
 })(window);

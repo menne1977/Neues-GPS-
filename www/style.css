@@ -346,3 +346,29 @@ body.land #nvWarn{left:31%}
 .dz-navi-idle{opacity:.85} .dz-navi-idle .dz-ni{font-size:2.2em;margin:auto;filter:grayscale(.2)} .dz-navi-idle b{color:#cfd8e6!important}
 .dz-navi{cursor:pointer}
 .dz-navi-idle .dz-ni{font-size:1em!important} .dz-navi-idle i{height:70%!important} .dz-navi-idle b{font-size:.62em!important} .dz-navi-idle small{font-size:.38em!important}
+/* ===== Sygic-ähnlicher Stil: Kopf, Fußleiste, Tempo-Plakette, Menü ===== */
+#navscreen #nsTop{background:linear-gradient(180deg,#0a78ff,#0a62e0);color:#fff;border-radius:22px;padding:12px 16px;box-shadow:0 6px 22px #0007}
+#navscreen #nsTop .nvD{font-size:calc(46px*var(--nv-scale,1));font-weight:800;line-height:1.05} #navscreen #nsTop .nvS{font-size:calc(26px*var(--nv-scale,1));font-weight:600}
+#navscreen #nsTop .nvN{margin-top:6px;padding-top:6px;border-top:1px solid #ffffff44;font-size:calc(17px*var(--nv-scale,1))}
+#nsClose{background:#ffffff26;border:0;color:#fff;width:46px;height:46px;border-radius:50%;font-size:20px}
+#nsLive{display:none!important}
+#nsBot{background:#121826;border-radius:22px;padding:8px 10px;gap:6px;box-shadow:0 6px 22px #0009;flex-wrap:nowrap}
+#nsBot .nsBM{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;text-align:center} #nsBot .nsBM b{font-size:30px;font-weight:800;line-height:1.1} #nsBot .nsBM small{font-size:16px;opacity:.8;white-space:nowrap}
+#nsBot .nsIc{flex:none;width:56px;height:56px;border-radius:16px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0;margin:0}
+#nsBot .nsIc:active{background:#ffffff1f}
+#nsSpd{position:absolute;right:10px;bottom:10px;z-index:3;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 8px;border-radius:40px;background:#121826e6;border:1px solid #ffffff22;box-shadow:0 4px 16px #0009}
+#nsSpd .spL{width:62px;height:62px;border-radius:50%;background:#fff;border:6px solid #e11d2e;display:flex;align-items:center;justify-content:center;box-sizing:border-box} #nsSpd .spL b{color:#111;font-size:26px;font-weight:800;line-height:1}
+#nsSpd.nolim .spL{opacity:.35}
+#nsSpd .spV{display:flex;flex-direction:column;align-items:center;line-height:1} #nsSpd .spV b{font-size:34px;font-weight:800} #nsSpd .spV small{font-size:13px;opacity:.75;margin-top:2px}
+#nsMenu{position:fixed;inset:0;z-index:40;background:#000a;display:flex;align-items:flex-end} #nsMenu[hidden]{display:none!important}
+.mnSheet{width:100%;max-height:88%;overflow:auto;background:#181d29;border-radius:28px 28px 0 0;padding:8px 14px calc(18px + env(safe-area-inset-bottom));color:#fff}
+.mnGrip{width:64px;height:6px;border-radius:3px;background:#ffffff33;margin:4px auto 10px}
+.mnHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px} .mnHead b{font-size:30px;font-weight:800} .mnHead button{width:52px;height:52px;border-radius:50%;border:0;background:#2e3442;color:#fff;font-size:22px}
+.mnRow{width:100%;display:flex;align-items:center;gap:16px;text-align:left;padding:16px 18px;margin-bottom:10px;border-radius:20px;border:0;background:#313744;color:#fff}
+.mnRow i{font-style:normal;font-size:32px;width:40px;text-align:center;flex:none} .mnRow span{flex:1;min-width:0;display:flex;flex-direction:column} .mnRow b{font-size:22px;font-weight:700} .mnRow small{font-size:16px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .mnRow em{font-style:normal;font-size:34px;opacity:.8}
+.mnRow:active,.mnTile:active{background:#3d4556}
+.mnSec{font-size:20px;font-weight:700;opacity:.65;margin:14px 4px 10px}
+.mnTiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mnTile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:18px 6px 12px;min-height:130px;border-radius:22px;border:0;background:#313744;color:#fff} .mnTile i{font-style:normal;font-size:44px;line-height:1} .mnTile b{font-size:17px;font-weight:700;text-align:center}
+body.land .mnSheet{max-width:640px;margin:0 auto} body.land .mnTiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+#nsZoom #nsRot{font-size:26px;background:#2f8bff;border-color:#fff}
