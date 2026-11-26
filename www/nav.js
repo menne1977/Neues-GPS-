@@ -307,13 +307,14 @@
     const pk = o.pick ? o.pick % pool.length : 0, rt = pool[pk];
     const info = { pick: pk, pool: pool.length, cands: cands.length, curv: rt.curv, scenic: rt.scenic || null, minDur, extra: minDur ? (rt.dur / minDur - 1) : 0 };
     if (!kinds.length || !rt.scenic) info.noScenic = kinds.length > 0;
-    return { rt, info };
+    const alts = [rt].concat(pool.filter((c) => c !== rt)).slice(0, 3);
+    return { rt, info, alts };
   }
 
   async function plan(a, b, o, fetchFn, progress) {
     o = Object.assign({ veh: 'auto', curves: 'egal', type: 'normal', scenic: [], avoid: [] }, o || {});
-    const av = o.avoid || [];
-    if (o.veh === 'fuss' || !av.length) return planCore(a, b, o, fetchFn, progress, {});
+    const av = o.avoid || [], xp = o.polys || [];
+    if (o.veh === 'fuss' || !av.length) return planCore(a, b, o, fetchFn, progress, xp.length && o.veh !== 'fuss' ? { polys: xp } : {});
     const avoid = { highway: av.includes('autobahn'), toll: av.includes('maut'), ferry: av.includes('faehre'), city: av.includes('stadt') };
     let polys = [], names = [], notes = [];
     if (avoid.city) {
@@ -323,6 +324,7 @@
         const cp = await cityPolys(first.rt, a, b, fetchFn); polys = cp.polys; names = cp.names;
       } catch (e) { notes.push('Innenstädte konnte ich nicht prüfen'); }
     }
+    polys = polys.concat(xp);
     let res, soft = false;
     try { res = await planCore(a, b, o, fetchFn, progress, { avoid, polys, strict: true }); }
     catch (e1) {
@@ -351,6 +353,39 @@
   }
 
   // ---- Führung: Position auf der Route, nächster Schritt, Ansagen ----
+  // Lage eines Punktes zur Route: Abstand und Meter entlang der Strecke
+  function proj(rt, lat, lon, from) {
+    const c = Math.cos(lat * RAD); let best = { d: 1e12, at: 0 };
+    for (let k = Math.max(0, from || 0); k < rt.shape.length - 1; k++) {
+      const A = rt.shape[k], B = rt.shape[k + 1];
+      const ax = (A.lon - lon) * 111320 * c, ay = (A.lat - lat) * 111320, bx = (B.lon - lon) * 111320 * c, by = (B.lat - lat) * 111320;
+      if (Math.min(Math.abs(ax), Math.abs(bx)) > 3000 && ax * bx > 0) continue; if (Math.min(Math.abs(ay), Math.abs(by)) > 3000 && ay * by > 0) continue;
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy; let t = l2 ? -(ax * dx + ay * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(ax + dx * t, ay + dy * t); if (d < best.d) best = { d, at: rt.cum[k] + t * (rt.cum[k + 1] - rt.cum[k]) };
+    }
+    return best;
+  }
+  // Bahnübergänge entlang der Route (OSM railway=level_crossing). sicher: 'offen' | 'gesichert' | 'unbekannt'
+  async function rails(rt, fetchFn) {
+    const idx = []; let next = 0;
+    for (let i = 0; i < rt.shape.length; i++) if (rt.cum[i] >= next || i === rt.shape.length - 1) { idx.push(i); next = rt.cum[i] + 120; }
+    const out = [], seen = new Set();
+    for (let i = 0; i < idx.length; i += 150) {
+      const part = idx.slice(Math.max(0, i - 1), i + 150); if (part.length < 2) continue;
+      const ll = part.map((k) => rt.shape[k].lat.toFixed(5) + ',' + rt.shape[k].lon.toFixed(5)).join(',');
+      const j = await overpass(`[out:json][timeout:25];node(around:20,${ll})["railway"~"^(level_crossing|crossing)$"];out 300;`, fetchFn);
+      for (const e of j.elements || []) {
+        if (seen.has(e.id) || e.lat == null) continue; seen.add(e.id);
+        const t = e.tags || {}, bar = t['crossing:barrier'], light = t['crossing:light'], cr = t.crossing;
+        const secured = (bar && bar !== 'no') || light === 'yes' || /barrier|traffic_signals/.test(cr || '');
+        const open = !secured && (bar === 'no' || light === 'no' || cr === 'uncontrolled' || t['crossing:saltire'] === 'yes' && bar === 'no');
+        const p = proj(rt, e.lat, e.lon); if (p.d > 30) continue;
+        out.push({ id: e.id, lat: e.lat, lon: e.lon, at: p.at, kind: open ? 'offen' : secured ? 'gesichert' : 'unbekannt', foot: t.railway === 'crossing' });
+      }
+    }
+    return out.filter((r) => !r.foot).sort((a, b) => a.at - b.at);
+  }
+
   class Guide {
     constructor(rt) { this.rt = rt; this.idx = 0; this.off = 0; this.said = {}; this.arrived = false; this.state = null; }
     // Abstand von p zum Streckenstück k, plus Anteil t (0..1) und Meter entlang der Route
@@ -360,14 +395,14 @@
       const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
       let t = l2 ? -(ax * dx + ay * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
       const px = ax + dx * t, py = ay + dy * t;
-      return { d: Math.sqrt(px * px + py * py), along: this.rt.cum[k] + t * (this.rt.cum[k + 1] - this.rt.cum[k]) };
+      return { d: Math.sqrt(px * px + py * py), along: this.rt.cum[k] + t * (this.rt.cum[k + 1] - this.rt.cum[k]), lat: A.lat + (B.lat - A.lat) * t, lon: A.lon + (B.lon - A.lon) * t };
     }
     // cfg: { first: Meter der ersten Ansage oder 'auto', speed: m/s }
     update(lat, lon, acc, cfg) {
       cfg = cfg || {};
       const n = this.rt.shape.length - 1; if (n < 1) return null;
       let best = null;
-      const scan = (a, b) => { for (let k = a; k < b; k++) { const s = this.seg(lat, lon, k); if (!best || s.d < best.d) best = { d: s.d, along: s.along, k }; } };
+      const scan = (a, b) => { for (let k = a; k < b; k++) { const s = this.seg(lat, lon, k); if (!best || s.d < best.d) best = { d: s.d, along: s.along, k, lat: s.lat, lon: s.lon }; } };
       scan(Math.max(0, this.idx - 3), Math.min(n, this.idx + 80));
       if (!best || best.d > 60) scan(0, n);
       const limit = Math.max(35, (acc || 10) * 2);
@@ -397,7 +432,7 @@
       this.state = {
         off: this.off >= 3, along, remain, remainT: remain * rate, step, dNext, kind: step.kind, arrow: ARROW[step.kind] || '⬆', exit: step.exit || 0, exitAng: step.exitAng,
         then: (this.rt.steps[ni + 1] && step.kind !== 'arrive') ? { arrow: ARROW[this.rt.steps[ni + 1].kind] || '⬆', d: Math.max(0, this.rt.steps[ni + 1].at - along), kind: this.rt.steps[ni + 1].kind, exit: this.rt.steps[ni + 1].exit || 0, exitAng: this.rt.steps[ni + 1].exitAng } : null,
-        street: step.street, text: step.text, arrived: this.arrived, say, pos: { lat, lon }, dev: best.d
+        street: step.street, text: step.text, arrived: this.arrived, say, pos: { lat, lon }, dev: best.d, snap: best.d <= limit ? { lat: best.lat, lon: best.lon } : null
       };
       return this.state;
     }
@@ -438,6 +473,6 @@
   const fmtDist = (m) => (m == null ? '–' : m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m');
   const fmtTime = (s) => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
 
-  const api = { icon, finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
+  const api = { proj, rails, icon, finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Nav = api;
 })(typeof window !== 'undefined' ? window : globalThis);

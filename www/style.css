@@ -286,3 +286,63 @@ body.port.nv-dock #hero{--sg:calc(var(--hs)*min(25vw,(100vh - var(--nvh,0px))*.1
 .nvD{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 body.port.nv-big #navmini .nmR{display:none}
 body.port.nv-big .nvD{font-size:calc(min(30px*var(--nv-scale,1),11vw))}
+/* ===== Navi: modernes Menü ===== */
+#navscreen{background:radial-gradient(120% 60% at 50% 0%,#12233f 0%,#070b12 60%)}
+#nsSearch{display:flex;flex-direction:column;gap:6px}
+#nsHead{display:flex;align-items:center;gap:12px;margin:2px 0 12px}
+#nsHead b{font-size:26px;font-weight:800;flex:1;letter-spacing:.2px}
+#nsHead #nsBack{width:50px;height:50px;padding:0;border-radius:50%;text-align:center;font-size:22px;background:#ffffff14;border:1px solid #ffffff22}
+#nsGps{font-size:13px;font-weight:700;padding:6px 10px;border-radius:20px;background:#ffffff12;white-space:nowrap}
+#nsGps.good{color:#4ade80} #nsGps.mid{color:#fbbf24} #nsGps.bad{color:#f87171}
+.nsQRow{display:flex;gap:8px;align-items:stretch;position:sticky;top:0;z-index:2;padding-bottom:4px}
+.nsQRow #nsQ{flex:1;margin:0;border-radius:18px;border:2px solid #2f8bff;background:#0d1830;box-shadow:0 6px 24px #0008}
+.nsQRow #nsGo{width:64px;min-height:62px;border-radius:18px;font-size:24px;padding:0;margin:0}
+.nsSec{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin:18px 2px 8px}
+.nsTiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.nsTile{position:relative;min-width:0}
+.nsTb{width:100%;height:100%;min-height:92px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:12px 14px;border-radius:18px;border:1px solid #ffffff1c;background:linear-gradient(160deg,#18304f,#0f1d33);color:#fff}
+.nsTb i{font-style:normal;font-size:26px;line-height:1;margin-bottom:4px} .nsTb b{font-size:17px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .nsTb small{font-size:12px;opacity:.65;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nsTile.off .nsTb{background:#0f1a2c;border-style:dashed;opacity:.85}
+.nsTx{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:#00000055;color:#fff;font-size:13px}
+#nsPlaces,#nsOff{margin-top:0}
+.nsHit{border-radius:16px;background:#0f1d33;border:1px solid #ffffff14;margin-bottom:8px}
+/* ===== Routenvorschau ===== */
+#nsPrev{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+#nsPrev[hidden],#nvWarn[hidden],#nvAsk[hidden]{display:none!important}
+.npHead{display:flex;align-items:center;gap:12px} .npHead span{display:flex;flex-direction:column;min-width:0} .npHead b{font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .npHead small{opacity:.65;font-size:13px}
+#npBack{width:50px;height:50px;flex:none;border-radius:50%;border:1px solid #ffffff22;background:#ffffff14;color:#fff;font-size:22px}
+.npMapW{position:relative;flex:1;min-height:180px;border-radius:20px;overflow:hidden;border:1px solid #ffffff14} #npMap{position:absolute;inset:0;width:100%;height:100%}
+.npSide{display:flex;flex-direction:column;gap:10px}
+#npList{display:flex;flex-direction:column;gap:8px}
+.npCard{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"t m" "g g";align-items:baseline;gap:4px 12px;text-align:left;padding:12px 14px;border-radius:16px;border:2px solid transparent;background:#0f1d33;color:#fff;border-left:6px solid var(--ac)}
+.npCard.on{border-color:var(--ac);background:#14284a;box-shadow:0 4px 18px #0007}
+.npT{grid-area:t;display:flex;align-items:baseline;gap:8px} .npT b{font-size:24px} .npT small{color:#fbbf24;font-weight:700}
+.npM{grid-area:m;opacity:.75;font-size:14px;text-align:right}
+.npTags{grid-area:g;display:flex;flex-wrap:wrap;gap:6px} .npTags em{font-style:normal;font-size:12px;padding:3px 8px;border-radius:10px;background:#ffffff14} .npTags em.fast{background:#16a34a55;color:#bbf7d0} .npTags em.warn{background:#f59e0b44;color:#fde68a}
+.npBtns{display:flex;gap:10px} .npBtns .act{flex:1;min-height:58px;font-size:18px;border-radius:16px} #npGo{flex:1.6;font-weight:800}
+/* ===== Warnung und Frage ===== */
+#nvWarn{position:fixed;left:50%;transform:translateX(-50%);top:calc(max(10px,env(safe-area-inset-top)) + var(--nvh,0px) + 64px);z-index:30;display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:18px;background:#b91c1c;color:#fff;box-shadow:0 8px 30px #000a;border:2px solid #fff;max-width:92vw}
+#nvWarn i{font-style:normal;font-size:30px} #nvWarn span{display:flex;flex-direction:column} #nvWarn b{font-size:18px} #nvWarn small{font-size:14px;opacity:.9}
+#nvAsk{position:fixed;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:calc(max(12px,env(safe-area-inset-bottom)) + 70px);z-index:31;padding:14px;border-radius:20px;background:#1e293b;border:2px solid #f59e0b;box-shadow:0 10px 40px #000c;color:#fff}
+.naQ{display:flex;gap:12px;align-items:center;margin-bottom:12px} .naQ i{font-style:normal;font-size:34px} .naQ span{display:flex;flex-direction:column;min-width:0} .naQ b{font-size:19px} .naQ small{opacity:.75;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.naB{display:flex;gap:10px} .naB .act{flex:1;min-height:58px;font-size:18px;border-radius:14px} .naB .pri{background:#f59e0b;border-color:#f59e0b;color:#111;font-weight:800}
+/* modernere Karte und Leisten */
+#nsMapW{border-radius:20px;overflow:hidden;border:1px solid #ffffff12}
+#nsLive div,#nsBot .act{border-radius:16px}
+#nsZoom button{border-radius:14px;background:#0b1626d9;backdrop-filter:blur(6px);border:1px solid #ffffff26}
+/* ===== Querformat ===== */
+body.land #navscreen{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"map top" "map live" "map ." "map bot";column-gap:12px;row-gap:8px;padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+body.land #nsTop{grid-area:top} body.land #nsLive{grid-area:live;margin:0} body.land #nsMapW{grid-area:map;margin:0} body.land #nsBot{grid-area:bot}
+body.land #nsSearch,body.land #nsPrev{grid-column:1/-1;grid-row:1/-1}
+body.land #nsSearch{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;overflow:hidden;padding-top:0}
+body.land .nsSL,body.land .nsSR{overflow:auto;min-height:0;padding-bottom:20px}
+body.land .nsTiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+body.land #nsPrev{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px 14px}
+body.land .npHead{grid-column:1/-1} body.land .npMapW{min-height:0} body.land .npSide{overflow:auto;min-height:0}
+body.land #nsLive{flex-wrap:wrap} body.land #nsLive div{flex:1 1 40%}
+body.land #nvAsk{left:auto;width:min(460px,60vw);bottom:max(12px,env(safe-area-inset-bottom))}
+body.land #nsTop .nvI{width:70px;height:70px}
+body.land #nvWarn{left:31%}
+.dz-navi-idle{opacity:.85} .dz-navi-idle .dz-ni{font-size:2.2em;margin:auto;filter:grayscale(.2)} .dz-navi-idle b{color:#cfd8e6!important}
+.dz-navi{cursor:pointer}
+.dz-navi-idle .dz-ni{font-size:1em!important} .dz-navi-idle i{height:70%!important} .dz-navi-idle b{font-size:.62em!important} .dz-navi-idle small{font-size:.38em!important}

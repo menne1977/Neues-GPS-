@@ -483,6 +483,15 @@
   // Jedes gespeicherte Design wird zusätzlich in den Ordner Documents/Tacho-Designs geschrieben
   const mirrorDesign = (d) => (DFiles ? DFiles.save({ name: d.name, text: JSON.stringify(d) }).catch(() => null) : Promise.resolve(null));
   { const put0 = Design.Store.put; Design.Store.put = async (d) => { const r = await put0(d); mirrorDesign(d); return r; }; }
+  // Mitgelieferte Navi-Designs (www/vorlagen) einmalig in die Design-Liste übernehmen
+  const NAVI_TPL = ['Navi-Quer', 'Navi-Hochformat', 'Navi-Split-Hoch', 'Navi-Split-Quer'];
+  async function installNaviTpl(force) {
+    if (!force && S.naviTpl === 1) return 0; let n = 0;
+    for (const f of NAVI_TPL) { try { const r = await fetch('vorlagen/' + f + '.tacho.json'); if (!r.ok) continue; const d = Design.parse(await r.text()); delete d.warn; await Design.Store.put(d); n++; } catch (_) { /* weiter */ } }
+    S.naviTpl = 1; save(true); return n;
+  }
+  setTimeout(() => installNaviTpl(false).then((n) => { if (n) toast('Neue Navi-Tacho-Designs sind da: Einstellungen → Tacho-Designs → „Navi-Designs verwenden“.', 7000); }).catch(() => {}), 2500);
+  document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.dz-navi') && window.NavUI) NavUI.show(); });
   async function exportAllDesigns() {
     const l = await Design.Store.list();
     if (!l.length) { toast('Noch keine Designs da', 3000); return; }
@@ -583,7 +592,9 @@
   if (window.NavUI) NavUI.init({
     R, S, toast, save, hasNaviEl: () => !!(cur && cur.d && cur.d.els.some((e) => e.t === 'navi')), fetch: (u, o) => fetch(u, o), roads: () => engine.roads, heading: () => headingNow(),
     live: () => { const av = altVals(), h = headingNow(); return { speed: S.decimals ? fmt(R.speed * fu(), 1) : String(Math.round(R.speed * fu())), unit: uName(), limit: R.limit && R.limit.v != null ? String(Math.round(R.limit.v * fu())) : (R.limit && R.limit.kind === 'none' ? '∞' : '–'), alt: av.sel != null ? Math.round(av.sel) + ' m' : '–', altName: 'Höhe ' + ALTN[S.altRef], dir: h != null ? dirName(h) + ' ' + Math.round(h) + '°' : '–' }; },
-    speak: (t) => { if (Voice) Voice.speak({ text: t, pitch: 1, rate: 1.02, voice: '', volume: S.vol }).catch(() => {}); else if (window.speechSynthesis) { try { speechSynthesis.speak(new SpeechSynthesisUtterance(t)); } catch (e) { /* egal */ } } }
+    speak: (t, o) => { o = o || {}; if (Voice) Voice.speak({ text: t, pitch: o.pitch || 1, rate: o.rate || 1.02, voice: o.voice || '', volume: S.vol }).catch(() => {}); else if (window.speechSynthesis) { try { const u = new SpeechSynthesisUtterance(t); u.lang = 'de-DE'; if (o.pitch) u.pitch = o.pitch; if (o.rate) u.rate = o.rate; if (o.voice) { const v = speechSynthesis.getVoices().find((x) => x.name === o.voice); if (v) u.voice = v; } speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* egal */ } } },
+    voices: async () => { if (Voice) { const r = await Voice.voices(); return r.voices || []; } return (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter((v) => /^de/i.test(v.lang)).map((v) => ({ name: v.name, network: !v.localService, installed: true })); },
+    jams: () => { if (S.online && Date.now() - (Places.P.jamT || 0) > 120000) placesApi.refresh(false); return Places.P.jams; }
   });
   $('#bNav').onclick = () => NavUI.show();
   const placesApi = { navigate: navigateTo, toast, refresh: (force) => Places.ensure(R.lat != null ? { lat: R.lat, lon: R.lon, heading: R.approx ? null : headingNow() } : (S.lp ? { lat: S.lp.lat, lon: S.lp.lon, heading: null } : null), S.fuelKm, !!force) };
@@ -672,6 +683,8 @@
       case 'navopt': { const o = NavUI.opts(); const p = Object.assign({}, a.p || {}); if (a.add) p.scenic = o.scenic.includes(a.add) ? o.scenic : o.scenic.concat(a.add); NavUI.setOpt(p); return Promise.resolve(a.say || 'Eingestellt.'); }
       case 'naviorient': if (a.v === 'center') NavUI.recenter(); else NavUI.setOrient(a.v); return Promise.resolve(a.say);
       case 'navlook': NavUI.setLook(a.p); return Promise.resolve(a.say || 'Eingestellt.');
+      case 'navjam': return Promise.resolve(a.yes ? NavUI.jamYes() : NavUI.jamNo());
+      case 'navgo': return Promise.resolve(NavUI.prevGo(a.n));
       case 'navalt': return NavUI.altRoute();
       case 'navshare': return NavUI.shareEta();
       case 'navoffline': return a.name ? NavUI.startOffline(a.name) : NavUI.saveOffline();
@@ -821,7 +834,7 @@
       case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
       case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
       case 'phone': phoneAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e))); break;
-      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto': case 'navopt': case 'navstop': case 'navinfo': case 'navrepeat': case 'navshow': case 'navsave': case 'navwalk': case 'navtheme': case 'navzoom': case 'navavoid': case 'naviorient': case 'navoffline': case 'navalt': case 'navshare': case 'navlook':
+      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto': case 'navopt': case 'navstop': case 'navinfo': case 'navrepeat': case 'navshow': case 'navsave': case 'navwalk': case 'navtheme': case 'navzoom': case 'navavoid': case 'naviorient': case 'navoffline': case 'navalt': case 'navshare': case 'navlook': case 'navjam': case 'navgo':
         if (!['sys', 'media', 'sysvol', 'openapp'].includes(a.act) && !/^nav/.test(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
         appAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e)));
         break;
@@ -898,6 +911,7 @@
       <button class="act" data-do="gai">KI-Text kopieren (für andere KI)</button>
       <button class="act" data-do="dpaste">Design-Text einfügen (von KI)</button>
       <button class="act" data-do="dload">Design-Datei laden (.tacho.json)</button>
+      <button class="act pri" data-do="dnavi">Navi-Designs verwenden (Quer, Hochformat, Split)</button>
       <button class="act pri" data-do="dexpall">Alle Tachos in Ordner speichern (Dokumente/Tacho-Designs)</button>
       <button class="act" data-do="dfolder">Tachos aus Ordner laden</button>
       <button class="act" data-do="dserver">Designs vom Server holen</button>
@@ -955,6 +969,7 @@
     if (d === 'gguide') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox">' + Guide.html() + '<button class="act pri" data-g="ai">KI-Text kopieren</button><button class="act" data-g="x">Schließen</button></div>'; o.onclick = (ev) => { const g = ev.target.dataset.g; if (g === 'x' || ev.target === o) o.remove(); if (g === 'ai') copyAi(); }; document.body.appendChild(o); }
     if (d === 'gai') copyAi();
     if (d === 'dpaste') { const o = document.createElement('div'); o.className = 'guide'; o.innerHTML = '<div class="gbox"><h3>Design-Text einfügen</h3><textarea id="gpaste" placeholder="Hier den Text der KI einfügen"></textarea><button class="act pri" data-g="ok">Laden</button><button class="act" data-g="x">Abbrechen</button></div>'; o.onclick = async (ev) => { const g = ev.target.dataset.g; if (g === 'x') o.remove(); if (g === 'ok') { try { const dd = await importText($('#gpaste').value); o.remove(); toast('Design geladen: ' + dd.name + '. Jetzt oben auswählen.', 6000); buildPanel('designs'); } catch (er) { toast('Das ist kein gültiges Design: ' + errMsg(er), 7000); } } }; document.body.appendChild(o); }
+    if (d === 'dnavi') installNaviTpl(true).then(() => { S.dLand = 'Navi Quer'; S.dPort = 'Navi Hochformat'; S.dSplit = isLand() ? 'Navi Split Quer' : 'Navi Split Hoch'; save(true); location.reload(); }).catch((er) => toast(errMsg(er), 6000));
     if (d === 'dexpall') exportAllDesigns().catch((er) => toast(errMsg(er), 6000));
     if (d === 'dfolder') importFolder().catch((er) => toast(errMsg(er), 6000));
     if (d === 'dedit') openCreator(t.dataset.n);

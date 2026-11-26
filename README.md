@@ -34,3 +34,13 @@ Der 🧭-Knopf öffnet das eigene Navi: Ziel suchen, Route mit Ansagen, Karte (F
 - Kreisverkehr als Grafik mit Ausfahrt-Nummer und Richtung.
 - Erste Ansage vor dem Abbiegen: 250 m, 500 m, 750 m, 1 km oder nach Tempo; danach 200 m und beim Abbiegen.
 - Sprache: „Ansage bei 1 Kilometer“, „Navi Leiste unten“, „Pfeile groß“.
+
+### Navi wie Sygic/TomTom (Ausbau)
+- **Routenvorschau:** vor dem Start bis zu 3 Routen auf der Übersichtskarte (Zeit, km, Ankunft, Autobahn/Maut/Fähre, Kurven). Start nach 12 s von selbst oder mit „Los“/„Route 2“.
+- **Stau auf der Route:** Autobahn-Meldungen (verkehr.autobahn.de) werden mit der Route verglichen. Liegt einer voraus, fragt das Navi „Umfahren?“ (Knopf oder „Ja“/„Nein“). Auch automatisch umfahren möglich.
+- **Bahnübergänge:** Warnung vor Bahnübergängen ohne Schranke (OSM-Daten), Ansage und rotes Hinweisfeld, Andreaskreuz auf der Karte.
+- **Funkloch-Schutz:** Straßen entlang der Route werden beim Start automatisch gesichert; Karte und Führung laufen ohne Internet weiter.
+- **GPS:** Genauigkeit als Anzeige und Kreis auf der Karte; Position rastet auf der Straße ein (abschaltbar).
+- **Stimme:** alle deutschen Stimmen des Handys (Mann/Frau, „online“ = natürlich) und Sprechart Normal, Ernst, Ruhig, Lustig, Schnell, Tief, Hoch.
+- **Menü:** Kacheln für Ziele, einklappbare Einstellungen; Querformat mit Karte links und Infos rechts.
+- **Navi-Designs:** Navi Quer, Navi Hochformat, Navi Split Hoch, Navi Split Quer (Navi auf einem Viertel, Blau-Grau, Tempo grün, Rest gelb, Ankunft orange). Einstellungen → Tacho-Designs → „Navi-Designs verwenden“.

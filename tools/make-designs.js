@@ -263,3 +263,82 @@ const out = (d) => {
   tile(53, 88.5, 'WIND', 'wind', ' km/h');
   out(d);
 })();
+
+// ===== Navi-Designs: Navi auf einem Viertel der Fläche, Werte verteilt, Blau-Grau, wichtige Zahlen grün/gelb/orange =====
+(() => {
+  const C = { bg: '#0d1520', grad: 'linear-gradient(155deg,#17263a 0%,#0e1724 55%,#0a1018 100%)', panel: '#162232', line: '#2b3d54', lab: '#8fa4be', txt: '#e8eef6', grn: '#3ddc97', yel: '#ffd23f', org: '#ff9f43', blu: '#6cb6ff' };
+  const fit = (max, w, chars, asp) => +Math.min(max, w * asp / (0.6 * chars)).toFixed(2);
+  const mk = (name, asp, orient) => { const d = D.blank(name); d.aspect = asp; d.orient = orient; d.bg.color = C.bg; d.bg.grad = C.grad; return d; };
+  const panel = (x, y, w, h, extra) => el('rect', Object.assign({ x, y, w, h, color: C.panel, radius: 14, border: 0.35, borderColor: C.line }, extra || {}));
+  // Kachel: Fläche, Beschriftung oben links, Wert darunter
+  const tile = (asp, x, y, w, h, label, src, o) => {
+    o = o || {}; const chars = o.chars || 6, ls = fit(h * 0.16, w * 0.86 * 0.82, Math.max(8, label.length), asp), vs = fit(h * 0.44, w * 0.88, chars, asp);
+    return [panel(x, y, w, h),
+      el('text', { x: x + w * 0.06, y: y + h * 0.07, w: w * 0.88, h: h * 0.26, text: label, size: ls, color: C.lab, weight: 700, align: 'l' }),
+      el('value', Object.assign({ x: x + w * 0.06, y: y + h * 0.36, w: w * 0.88, h: h * 0.56, src, size: vs, color: o.color || C.txt, weight: 800, font: 'condensed', align: 'l' }, o.v || {}))];
+  };
+  const naviBox = (asp, x, y, w, h, lay, size) => el('navi', { x, y, w, h, size, lay, color: C.yel, style: 'klassisch', box: false });
+
+  // --- Querformat 2,12: Navi links (Viertel), Tempo Mitte, sechs Kacheln rechts
+  (() => {
+    const a = 2.12, d = mk('Navi Quer', a, 'land');
+    d.els.push(panel(1.5, 4, 24, 92, { color: '#13253d', borderColor: '#2f5d8f' }),
+      el('text', { x: 3, y: 6, w: 20, h: 6, text: 'NAVI', size: 3.4, color: C.blu, weight: 800, align: 'l' }),
+      naviBox(a, 2.5, 12, 22, 56, 'hoch', 12),
+      el('text', { x: 3, y: 71, w: 10, h: 5, text: 'REST', size: 3, color: C.lab, weight: 700, align: 'l' }),
+      el('value', { x: 3, y: 76, w: 11, h: 14, src: 'navremain', size: fit(9, 11, 6, a), color: C.yel, weight: 800, font: 'condensed', align: 'l' }),
+      el('text', { x: 14, y: 71, w: 10, h: 5, text: 'ANKUNFT', size: 3, color: C.lab, weight: 700, align: 'l' }),
+      el('value', { x: 14, y: 76, w: 10.5, h: 14, src: 'naveta', size: fit(9, 10.5, 5, a), color: C.org, weight: 800, font: 'condensed', align: 'l' }),
+      el('value', { x: 27, y: 6, w: 34, h: 52, src: 'speed', size: fit(46, 34, 3, a), color: C.grn, weight: 900, font: 'condensed', align: 'c', stc: true }),
+      el('text', { x: 27, y: 57, w: 34, h: 7, text: 'km/h', size: 4.2, color: C.lab, weight: 700, align: 'c' }),
+      el('sign', { x: 28.5, y: 67, w: 26 / a, h: 26 }),
+      el('road', { x: 42, y: 70, w: 19, h: 9, size: 4.4, color: C.txt, align: 'l' }),
+      el('next', { x: 42, y: 81, w: 19, h: 10, size: 3.6 }));
+    const cw = 17.4, rh = 26, xs = [62.5, 81], ys = [13, 41.5, 70];
+    [['HÖHE', 'alt', { color: C.yel, v: { unit: ' m' } }], ['RICHTUNG', 'dirname', { color: C.blu, chars: 4 }], ['UHRZEIT', 'clock', { chars: 5 }], ['TAGES-KM', 'day', { v: { unit: ' km', dec: 1 } }], ['HÖCHSTTEMPO', 'max', { color: C.org, v: { unit: ' km/h' }, chars: 7 }], ['TEMPERATUR', 'temp', { v: { unit: '°' }, chars: 4 }]]
+      .forEach(([l, s, o], i) => d.els.push(...tile(a, xs[i % 2], ys[Math.floor(i / 2)], cw, rh, l, s, o)));
+    out(d);
+  })();
+
+  // --- Hochformat 0,47: Navi oben (Viertel), Tempo, sechs Kacheln
+  (() => {
+    const a = 0.47, d = mk('Navi Hochformat', a, 'port');
+    d.els.push(panel(3, 6, 94, 21.5, { color: '#13253d', borderColor: '#2f5d8f' }),
+      naviBox(a, 5, 7, 90, 11.5, 'quer', 5.8),
+      el('rect', { x: 5, y: 19, w: 90, h: 0.2, color: C.line, radius: 0 }),
+      el('text', { x: 6, y: 19.6, w: 40, h: 2.4, text: 'REST', size: 1.5, color: C.lab, weight: 700, align: 'l' }),
+      el('value', { x: 6, y: 21.7, w: 42, h: 5, src: 'navremain', size: fit(4, 42, 7, a), color: C.yel, weight: 800, font: 'condensed', align: 'l' }),
+      el('text', { x: 52, y: 19.6, w: 42, h: 2.4, text: 'ANKUNFT', size: 1.5, color: C.lab, weight: 700, align: 'r' }),
+      el('value', { x: 52, y: 21.7, w: 42, h: 5, src: 'naveta', size: fit(4, 42, 5, a), color: C.org, weight: 800, font: 'condensed', align: 'r' }),
+      el('value', { x: 3, y: 29, w: 62, h: 17, src: 'speed', size: fit(17, 62, 3, a), color: C.grn, weight: 900, font: 'condensed', align: 'c', stc: true }),
+      el('text', { x: 3, y: 46, w: 62, h: 3, text: 'km/h', size: 2, color: C.lab, weight: 700, align: 'c' }),
+      el('sign', { x: 70, y: 30, w: 24, h: 24 * a }),
+      el('next', { x: 68, y: 42.5, w: 28, h: 5, size: 1.8 }),
+      el('road', { x: 3, y: 49.6, w: 94, h: 3.8, size: 2.3, color: C.txt, align: 'c' }));
+    const cw = 46, rh = 13.2, xs = [3, 51], ys = [54.5, 69.3, 84.1];
+    [['HÖHE', 'alt', { color: C.yel, v: { unit: ' m' } }], ['RICHTUNG', 'dirname', { color: C.blu, chars: 4 }], ['UHRZEIT', 'clock', { chars: 5 }], ['TAGESKILOMETER', 'day', { v: { unit: ' km', dec: 1 } }], ['HÖCHSTTEMPO', 'max', { color: C.org, v: { unit: ' km/h' }, chars: 7 }], ['TEMPERATUR', 'temp', { v: { unit: '°' }, chars: 4 }]]
+      .forEach(([l, s, o], i) => d.els.push(...tile(a, xs[i % 2], ys[Math.floor(i / 2)], cw, rh, l, s, o)));
+    out(d);
+  })();
+
+  // --- Geteilter Bildschirm (fast quadratisch): Navi oben (Viertel), Tempo links, vier Kacheln rechts
+  const split = (name, a, orient) => {
+    const d = mk(name, a, orient);
+    d.els.push(panel(2, 12, 96, 22, { color: '#13253d', borderColor: '#2f5d8f' }),
+      naviBox(a, 3.5, 13.5, 64, 19, 'quer', fit(9, 40, 6, a)),
+      el('text', { x: 70, y: 13.5, w: 26, h: 4, text: 'REST', size: 2.6, color: C.lab, weight: 700, align: 'r' }),
+      el('value', { x: 68, y: 17, w: 28, h: 6.5, src: 'navremain', size: fit(5.5, 28, 7, a), color: C.yel, weight: 800, font: 'condensed', align: 'r' }),
+      el('text', { x: 70, y: 23.5, w: 26, h: 4, text: 'ANKUNFT', size: 2.6, color: C.lab, weight: 700, align: 'r' }),
+      el('value', { x: 68, y: 27, w: 28, h: 6.5, src: 'naveta', size: fit(5.5, 28, 5, a), color: C.org, weight: 800, font: 'condensed', align: 'r' }),
+      el('value', { x: 2, y: 36, w: 47, h: 27, src: 'speed', size: fit(26, 47, 3, a), color: C.grn, weight: 900, font: 'condensed', align: 'c', stc: true }),
+      el('text', { x: 2, y: 62.5, w: 47, h: 5, text: 'km/h', size: 3.4, color: C.lab, weight: 700, align: 'c' }),
+      el('road', { x: 2, y: 68, w: 47, h: 6, size: fit(3.8, 47, 18, a), color: C.txt, align: 'c' }),
+      el('sign', { x: 25.5 - 20 / a / 2, y: 76, w: 20 / a, h: 20 }));
+    const ys = [36, 51.9, 67.8, 83.7], rh = 14.4;
+    [['HÖHE', 'alt', { color: C.yel, v: { unit: ' m' } }], ['RICHTUNG', 'dirname', { color: C.blu, chars: 4 }], ['UHRZEIT', 'clock', { chars: 5 }], ['TAGES-KM', 'day', { v: { unit: ' km', dec: 1 } }]]
+      .forEach(([l, s, o], i) => d.els.push(...tile(a, 51, ys[i], 47, rh, l, s, o)));
+    out(d);
+  };
+  split('Navi Split Hoch', 0.95, 'port');
+  split('Navi Split Quer', 1.06, 'land');
+})();

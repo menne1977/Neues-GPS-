@@ -254,7 +254,12 @@
           case 'sign': api.signHTML(api.limitObj, n.querySelector('.sign')); break;
           case 'navi': {
             const nv = api.nav || (opts.edit ? { kind: 'roundabout', exit: 2, exitAng: 90, dNext: 350, street: 'Hauptstraße', then: { kind: 'left', d: 900 }, look: {} } : null);
-            if (!nv) { n.style.visibility = 'hidden'; o.last = ''; break; }
+            if (!nv) {
+              if (e.idle === false) { n.style.visibility = 'hidden'; o.last = ''; break; }
+              n.style.visibility = ''; if (o.last !== 'idle') { o.last = 'idle'; const q = n.querySelector('.dz-navi'); q.className = 'dz-navi dz-navi-' + (e.lay || 'quer') + ' dz-navi-idle' + (e.box ? ' dz-navi-box' : ''); q.innerHTML = '<i><span class="dz-ni">🧭</span></i><span><b>Kein Ziel</b><small>Tippen: Navi öffnen</small></span>'; }
+              break;
+            }
+            n.style.visibility = '';
             const lk = nv.look || {}, colr = e.color || ({ blau: '#7cc0ff', weiss: '#ffffff', gelb: '#ffd400', gruen: '#3ef08a', orange: '#ff9f1a' })[lk.col] || '#7cc0ff', sty = e.style || lk.style || 'klassisch';
             const dist = nv.dNext >= 1000 ? (nv.dNext / 1000).toFixed(nv.dNext >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(nv.dNext / 10) * 10 + ' m';
             const key = [nv.kind, nv.exit, nv.exitAng, dist, nv.street, colr, sty, e.lay, e.box].join('|');
