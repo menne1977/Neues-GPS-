@@ -28,10 +28,27 @@
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
   const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
+  // Kreisverkehr: Ausfahrt-Schritt (Typ 27) in den Einfahrt-Schritt übernehmen
+  function foldRound(steps) {
+    for (let k = steps.length - 1; k >= 0; k--) {
+      const st = steps[k]; if (st.raw !== 27) continue;
+      let j = k - 1; while (j >= 0 && steps[j].kind !== 'roundabout') j--;
+      if (j >= 0) { steps[j].exitI = st.i; if (!steps[j].street) steps[j].street = st.street; steps.splice(k, 1); } else st.kind = 'straight';
+    }
+  }
+  const bearing = (a, b) => { const y = Math.sin((b.lon - a.lon) * RAD) * Math.cos(b.lat * RAD), x = Math.cos(a.lat * RAD) * Math.sin(b.lat * RAD) - Math.sin(a.lat * RAD) * Math.cos(b.lat * RAD) * Math.cos((b.lon - a.lon) * RAD); return (Math.atan2(y, x) / RAD + 360) % 360; };
   function finish(shape, steps, len, dur) {
     const cum = [0];
     for (let i = 1; i < shape.length; i++) cum.push(cum[i - 1] + hav(shape[i - 1].lat, shape[i - 1].lon, shape[i].lat, shape[i].lon));
     steps.forEach((s) => { s.at = cum[Math.min(s.i, cum.length - 1)] || 0; });
+    const idxAt = (d) => { let lo = 0, hi = cum.length - 1; d = Math.max(0, Math.min(cum[hi], d)); while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < d) lo = m + 1; else hi = m; } return lo; };
+    steps.forEach((s) => {
+      if (s.kind !== 'roundabout' || shape.length < 3) return;
+      const i0 = Math.min(s.i, shape.length - 1), iE = Math.min(s.exitI != null ? s.exitI : idxAt(s.at + 60), shape.length - 1);
+      const a = shape[idxAt(cum[i0] - 30)], b = shape[i0], c = shape[iE], d = shape[idxAt(cum[iE] + 30)];
+      if (a === b || c === d) return;
+      let ang = bearing(c, d) - bearing(a, b); ang = ((ang + 540) % 360) - 180; s.exitAng = Math.round(ang);
+    });
     const geo = cum[cum.length - 1];
     return { shape, cum, len: geo, dur: dur && len ? dur * (geo / len) : (dur || 0), steps };
   }
@@ -78,9 +95,10 @@
       (leg.maneuvers || []).forEach((m) => steps.push({
         i: off + (m.begin_shape_index || 0), kind: VAL[m.type] || 'straight',
         text: clean(m.instruction), say: clean(m.verbal_pre_transition_instruction || m.instruction),
-        street: clean((m.street_names || [])[0]), len: (m.length || 0) * 1000, t: m.time || 0
+        street: clean((m.street_names || [])[0]), len: (m.length || 0) * 1000, t: m.time || 0, raw: m.type, exit: m.roundabout_exit_count || 0
       }));
     });
+    foldRound(steps);
     const rt = finish(shape, steps, t.summary.length * 1000, t.summary.time);
     rt.flags = { toll: !!t.summary.has_toll, ferry: !!t.summary.has_ferry, highway: !!t.summary.has_highway };
     return rt;
@@ -123,8 +141,10 @@
       else if (m.type === 'arrive') { kind = 'arrive'; txt = 'Sie haben Ihr Ziel erreicht'; }
       else if (m.type === 'roundabout' || m.type === 'rotary') { kind = 'roundabout'; txt = 'Im Kreisverkehr ' + (m.exit ? 'die ' + m.exit + '. Ausfahrt nehmen' : 'ausfahren'); }
       else { txt = (MOD_TXT[mod] || 'weiterfahren') + (street ? ' auf ' + street : ''); txt = txt.charAt(0).toUpperCase() + txt.slice(1); }
-      steps.push({ i: nearestIdx(m.location || [shape[0].lon, shape[0].lat]), kind, text: txt, say: txt, street, len: s.distance || 0, t: s.duration || 0 });
+      steps.push({ i: nearestIdx(m.location || [shape[0].lon, shape[0].lat]), kind, text: txt, say: txt, street, len: s.distance || 0, t: s.duration || 0, exit: m.exit || 0, raw: m.type === 'exit roundabout' || m.type === 'exit rotary' ? 27 : (kind === 'roundabout' ? 26 : 0) });
     }));
+    steps.forEach((st, k) => { if (st.kind === 'roundabout' && steps[k + 1] && steps[k + 1].raw !== 27) st.exitI = steps[k + 1].i; });
+    foldRound(steps);
     return finish(shape, steps, rt.distance, rt.duration);
   }
 
@@ -342,7 +362,9 @@
       const px = ax + dx * t, py = ay + dy * t;
       return { d: Math.sqrt(px * px + py * py), along: this.rt.cum[k] + t * (this.rt.cum[k + 1] - this.rt.cum[k]) };
     }
-    update(lat, lon, acc) {
+    // cfg: { first: Meter der ersten Ansage oder 'auto', speed: m/s }
+    update(lat, lon, acc, cfg) {
+      cfg = cfg || {};
       const n = this.rt.shape.length - 1; if (n < 1) return null;
       let best = null;
       const scan = (a, b) => { for (let k = a; k < b; k++) { const s = this.seg(lat, lon, k); if (!best || s.d < best.d) best = { d: s.d, along: s.along, k }; } };
@@ -360,25 +382,62 @@
       const say = [];
       if (!this.arrived && this.off === 0) {
         const key = (z) => ni + ':' + z;
+        const sp = Math.max(0, cfg.speed || 0);
+        const first = cfg.first === 'auto' || !cfg.first ? Math.max(300, Math.min(1500, Math.round(sp * 22 / 50) * 50)) : +cfg.first;
+        const nxt = this.rt.steps[ni + 1], soon = nxt && nxt.kind !== 'depart' && (nxt.at - step.at) < 150;
+        const dann = soon ? ', danach ' + lowerFirst(nxt.say) : '';
+        const nice = (d) => (d >= 1000 ? Math.round(d / 100) * 100 : Math.round(d / 50) * 50);
         if (step.kind !== 'arrive' && step.kind !== 'depart') {
-          if (dNext < 800 && dNext > 500 && step.len > 1000 && !this.said[key(800)]) { this.said[key(800)] = 1; say.push('In ' + Guide.dist(800) + ' ' + lowerFirst(step.say)); }
-          if (dNext < 280 && dNext > 90 && !this.said[key(250)]) { this.said[key(250)] = 1; say.push('In ' + Guide.dist(250) + ' ' + lowerFirst(step.say)); }
+          if (dNext <= first + 25 && dNext > Math.max(170, first * 0.5) && !this.said[key('f')]) { this.said[key('f')] = 1; say.push('In ' + Guide.dist(nice(dNext)) + ' ' + lowerFirst(step.say)); }
+          if (first >= 450 && dNext < 230 && dNext > Math.max(70, sp * 4) && !this.said[key('m')]) { this.said[key('m')] = 1; this.said[key('f')] = 1; say.push('In ' + Guide.dist(200) + ' ' + lowerFirst(step.say) + dann); }
+          if (first < 450 && dNext <= first + 25 && dNext <= 170 && dNext > Math.max(60, sp * 4) && !this.said[key('f')]) { this.said[key('f')] = 1; say.push('In ' + Guide.dist(nice(dNext)) + ' ' + lowerFirst(step.say) + dann); }
         }
-        if (step.kind !== 'depart' && dNext < 70 && !this.said[key(0)]) { this.said[key(0)] = 1; say.push(step.say); }
+        if (step.kind !== 'depart' && dNext < (step.kind === 'arrive' ? Math.max(30, sp * 2) : Math.max(50, sp * 3.5)) && !this.said[key(0)]) { this.said[key(0)] = 1; say.push(step.say + (step.kind !== 'arrive' ? dann : '')); }
       }
       this.state = {
-        off: this.off >= 3, along, remain, remainT: remain * rate, step, dNext, kind: step.kind, arrow: ARROW[step.kind] || '⬆',
-        then: (this.rt.steps[ni + 1] && step.kind !== 'arrive') ? { arrow: ARROW[this.rt.steps[ni + 1].kind] || '⬆', d: Math.max(0, this.rt.steps[ni + 1].at - along), kind: this.rt.steps[ni + 1].kind } : null,
+        off: this.off >= 3, along, remain, remainT: remain * rate, step, dNext, kind: step.kind, arrow: ARROW[step.kind] || '⬆', exit: step.exit || 0, exitAng: step.exitAng,
+        then: (this.rt.steps[ni + 1] && step.kind !== 'arrive') ? { arrow: ARROW[this.rt.steps[ni + 1].kind] || '⬆', d: Math.max(0, this.rt.steps[ni + 1].at - along), kind: this.rt.steps[ni + 1].kind, exit: this.rt.steps[ni + 1].exit || 0, exitAng: this.rt.steps[ni + 1].exitAng } : null,
         street: step.street, text: step.text, arrived: this.arrived, say, pos: { lat, lon }, dev: best.d
       };
       return this.state;
     }
-    static dist(m) { return m >= 950 ? (Math.round(m / 100) / 10).toString().replace('.', ',') + ' Kilometern' : (Math.round(m / 10) * 10) + ' Metern'; }
+    static dist(m) { if (m >= 950 && m < 1050) return 'einem Kilometer'; return m >= 950 ? (Math.round(m / 100) / 10).toString().replace('.', ',') + ' Kilometern' : (Math.round(m / 10) * 10) + ' Metern'; }
+  }
+
+  // ---- Abbiege-Grafik (SVG). style: klassisch | schlank | kontur | zeichen ----
+  const ANG = { straight: 0, depart: 0, merge: 0, slight_right: 40, right: 90, sharp_right: 135, slight_left: -40, left: -90, sharp_left: -135, ramp: 35 };
+  function icon(st, o) {
+    o = o || {}; const k = (st && st.kind) || 'straight', col = o.col || '#ffffff', bg = o.bg || '#0b1626', sty = o.style || 'klassisch';
+    if (sty === 'zeichen') return `<span class="nvemo" style="color:${col}">${ARROW[k] || '⬆'}${k === 'roundabout' && st.exit ? '<sup>' + st.exit + '</sup>' : ''}</span>`;
+    const w = sty === 'schlank' ? 8 : 14, f = (n) => n.toFixed(1);
+    const lay = (el) => sty === 'kontur' ? el(col, w + 7) + el(bg, Math.max(3, w - 5)) : sty === 'klassisch' ? el('rgba(0,0,0,.55)', w + 6) + el(col, w) : el(col, w);
+    const line = (d) => lay((c, sw) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    const head = (x, y, dx, dy, s) => { const nx = -dy, ny = dx, pts = [[x + dx * s * 0.95, y + dy * s * 0.95], [x + nx * s * 0.75, y + ny * s * 0.75], [x - nx * s * 0.75, y - ny * s * 0.75]].map((p) => f(p[0]) + ',' + f(p[1])).join(' ');
+      return sty === 'kontur' ? `<polygon points="${pts}" fill="${bg}" stroke="${col}" stroke-width="6" stroke-linejoin="round"/>` : (sty === 'klassisch' ? `<polygon points="${pts}" fill="rgba(0,0,0,.55)" stroke="rgba(0,0,0,.55)" stroke-width="6" stroke-linejoin="round"/>` : '') + `<polygon points="${pts}" fill="${col}" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`; };
+    const hs = sty === 'schlank' ? 15 : 19;
+    let g = '';
+    if (k === 'arrive') {
+      g = line('M36 90 L36 14') + lay((c, sw) => `<path d="M38 16 L78 28 L38 42 Z" fill="${c}" stroke="${c}" stroke-width="${Math.min(sw, 6)}" stroke-linejoin="round"/>`) + `<circle cx="36" cy="90" r="6" fill="${col}"/>`;
+    } else if (k === 'uturn') {
+      g = line('M64 92 L64 42 A19 19 0 0 0 26 42 L26 58') + head(26, 58, 0, 1, hs);
+    } else if (k === 'roundabout') {
+      const a = (st.exitAng != null ? st.exitAng : 90) * RAD, dx = Math.sin(a), dy = -Math.cos(a), cx = 50, cy = 52, r = 15;
+      let trav = 180 - (st.exitAng != null ? st.exitAng : 90); trav = Math.max(25, Math.min(345, trav));
+      const ex = cx + dx * r, ey = cy + dy * r, tx = ex + dx * 13, ty = ey + dy * 13;
+      g = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${col}" stroke-opacity=".35" stroke-width="${w}"/>`
+        + line(`M50 96 L50 ${cy + r} A${r} ${r} 0 ${trav > 180 ? 1 : 0} 0 ${f(ex)} ${f(ey)} L${f(tx)} ${f(ty)}`) + head(tx, ty, dx, dy, hs * 0.85)
+        + (st.exit ? `<text x="${cx}" y="${cy + 6}" font-size="17" font-weight="800" text-anchor="middle" fill="${col}" font-family="sans-serif">${st.exit}</text>` : '');
+    } else {
+      const a = (ANG[k] || 0) * RAD, dx = Math.sin(a), dy = -Math.cos(a), by = ANG[k] ? 54 : 30;
+      const ex = 50 + dx * (ANG[k] ? 26 : 0), ey = by + dy * (ANG[k] ? 26 : 0);
+      g = line(`M50 94 L50 ${by} L${f(ex)} ${f(ey)}`) + head(ex, ey, dx, dy, hs);
+    }
+    return `<svg class="nvico" viewBox="0 0 100 100" aria-hidden="true">${g}</svg>`;
   }
 
   const fmtDist = (m) => (m == null ? '–' : m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m');
   const fmtTime = (s) => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
 
-  const api = { finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
+  const api = { icon, finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Nav = api;
 })(typeof window !== 'undefined' ? window : globalThis);

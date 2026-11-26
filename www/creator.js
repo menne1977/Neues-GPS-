@@ -78,7 +78,8 @@
     return {
       get: (s) => { const v = demo[s]; return typeof v === 'number' ? { n: v } : { n: null, t: String(v) }; },
       state: 'ok', limit: 70, limitKmh: 70, fu: 1, road: { name: 'Hauptstraße' }, next: { limit: { v: 50, kind: 'sign' }, dist: 130 },
-      limitObj: { v: 70, kind: 'sign' }, signHTML: a.signHTML
+      limitObj: { v: 70, kind: 'sign' }, signHTML: a.signHTML,
+      nav: { kind: 'roundabout', exit: 2, exitAng: 90, dNext: 350, street: 'Hauptstraße', then: { kind: 'left', d: 900 }, look: window.NavUI ? NavUI.look() : {} }, navIcon: (x, o) => (window.Nav ? Nav.icon(x, o) : '')
     };
   }
   function redraw() {
@@ -167,6 +168,7 @@
       case 'needle': row(fld('src', 'Wert', 'select', e, src), fld('min', 'Min', 'num', e), fld('max', 'Max', 'num', e), fld('a0', 'Start°', 'num', e), fld('a1', 'Ende°', 'num', e)); row(fld('len', 'Länge %', 'num', e), fld('width', 'Dicke', 'num', e, { step: 0.5 }), fld('color', 'Farbe', 'color', e), fld('hub', 'Nabe', 'check', e)); break;
       case 'dial': row(fld('min', 'Min', 'num', e), fld('max', 'Max', 'num', e), fld('step', 'Schritt', 'num', e), fld('minor', 'Zwischenstriche', 'num', e), fld('a0', 'Start°', 'num', e), fld('a1', 'Ende°', 'num', e)); row(fld('size', 'Zahlengröße', 'num', e, { step: 0.5 }), fld('color', 'Farbe', 'color', e), fld('font', 'Schrift', 'select', e, Object.keys(D.FONTS).map((k) => [k, k])), fld('lim', 'Limit-Marke', 'check', e)); break;
       case 'next': row(fld('size', 'Größe', 'num', e, { step: 0.5 })); break;
+      case 'navi': row(fld('size', 'Größe', 'num', e, { step: 0.5 }), fld('lay', 'Aufbau', 'select', e, [['quer', 'Pfeil links, Text rechts'], ['hoch', 'Pfeil oben, Text unten'], ['pfeil', 'Nur Pfeil']]), fld('style', 'Pfeil-Stil', 'select', e, [['', 'wie im Navi'], ['klassisch', 'Klassisch'], ['schlank', 'Schlank'], ['kontur', 'Umriss'], ['zeichen', 'Zeichen']]), fld('color', 'Farbe', 'color', e), fld('box', 'Hintergrund', 'check', e)); break;
       default: break;
     }
     p.innerHTML = h;

@@ -11,7 +11,7 @@
     ['clock', 'Uhrzeit'], ['date', 'Datum'], ['gps', 'GPS-Genauigkeit'], ['sat', 'Satelliten'], ['temp', 'Außentemperatur'], ['gust', 'Böen'], ['grade', 'Steigung'],
     ['wind', 'Windgeschwindigkeit'], ['winddir', 'Windrichtung'], ['hum', 'Luftfeuchte'], ['feels', 'Gefühlte Temperatur'], ['wx', 'Wetter als Text'], ['rain', 'Niederschlag'], ['ref', 'Straßennummer (z. B. A 42)'], ['roadname', 'Straßenname als Wert'], ['battery', 'Handy-Akku'], ['navdist', 'Navi: Entfernung bis Abbiegen'], ['navturn', 'Navi: Abbiegepfeil'], ['navstreet', 'Navi: nächste Straße'], ['navremain', 'Navi: Restweg'], ['navdur', 'Navi: Restdauer'], ['naveta', 'Navi: Ankunftszeit'], ['lat', 'Breitengrad'], ['lon', 'Längengrad'], 
   ];
-  const TYPES = { text: 'Text', value: 'Wert', bar: 'Balken', arc: 'Bogen', needle: 'Nadel', dial: 'Skala', rect: 'Fläche', image: 'Bild', sign: 'Tempo-Schild', road: 'Straßenname', next: 'Nächstes Limit' };
+  const TYPES = { text: 'Text', value: 'Wert', bar: 'Balken', arc: 'Bogen', needle: 'Nadel', dial: 'Skala', rect: 'Fläche', image: 'Bild', sign: 'Tempo-Schild', road: 'Straßenname', next: 'Nächstes Limit', navi: 'Navi-Anzeige' };
   const SHOW = [['always', 'immer'], ['over', 'nur zu schnell'], ['near', 'nur knapp drüber'], ['ok', 'nur im Limit'], ['notover', 'nicht zu schnell'], ['hasLimit', 'nur wenn Limit bekannt'], ['noLimit', 'nur ohne Limit']];
   const FONTS = { sans: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', mono: 'ui-monospace,"Roboto Mono",Menlo,monospace', condensed: '"Arial Narrow","Roboto Condensed",sans-serif-condensed,sans-serif', serif: 'Georgia,"Times New Roman",serif', digital: '"Courier New",ui-monospace,monospace' };
 
@@ -26,7 +26,8 @@
     image: { w: 30, h: 30, img: '', fit: 'contain' },
     sign: { w: 20, h: 20 },
     road: { w: 40, h: 8, size: 5, color: '#ffffff', font: 'sans', weight: 700, align: 'l' },
-    next: { w: 30, h: 10, size: 4 }
+    next: { w: 30, h: 10, size: 4 },
+    navi: { w: 44, h: 18, size: 6, lay: 'quer', color: '', style: '', box: true }
   };
 
   const DEMO = { navdist: '250 m', navturn: '⬅', navstreet: 'Hauptstraße', navremain: '12 km', navdur: '18 min', naveta: '14:32', speed: 87, kmh: 87, limit: 70, free: -17, alt: 78, dir: 45, dirname: 'NO', acc: 1.2, g: 0.2, max: 142, avg: 63, time: '1:42', day: 38.4, trip: 124.7, total: 48210, clock: '18:32', date: 'Sa., 21. Nov.', gps: 5, sat: '17/24', temp: 8, gust: 32, grade: 2.4, l100: 6.8 };
@@ -193,6 +194,7 @@
         }
         case 'image': if (e.img) n.style.cssText += `;background:url("${e.img}") center/${e.fit === 'fill' ? '100% 100%' : (e.fit || 'contain')} no-repeat`; break;
         case 'sign': n.innerHTML = '<div class="sign dz-sign"><span></span></div>'; break;
+        case 'navi': n.style.fontSize = `calc(var(--u)*${e.size || 6})`; n.innerHTML = '<div class="dz-navi"></div>'; break;
         case 'next': n.innerHTML = '<div class="dz-next"><div class="sign"><span></span></div><b></b></div>'; n.style.fontSize = `calc(var(--u)*${e.size || 4})`; break;
         case 'bar': {
           n.style.background = e.bg; n.style.borderRadius = e.radius + 'px'; n.style.overflow = 'hidden';
@@ -250,6 +252,19 @@
           case 'value': { const v = api.get(e.src); const txt = v.n != null ? fmtN(v.n, e.dec, e.pad) : (v.t != null ? v.t : '–'); if (o.last !== txt) { o.inner.textContent = txt; o.last = txt; } n.style.color = col; break; }
           case 'road': { const t = api.road ? (api.road.name || api.road.ref || '') : ''; if (o.last !== t) { o.inner.textContent = t; o.last = t; } break; }
           case 'sign': api.signHTML(api.limitObj, n.querySelector('.sign')); break;
+          case 'navi': {
+            const nv = api.nav || (opts.edit ? { kind: 'roundabout', exit: 2, exitAng: 90, dNext: 350, street: 'Hauptstraße', then: { kind: 'left', d: 900 }, look: {} } : null);
+            if (!nv) { n.style.visibility = 'hidden'; o.last = ''; break; }
+            const lk = nv.look || {}, colr = e.color || ({ blau: '#7cc0ff', weiss: '#ffffff', gelb: '#ffd400', gruen: '#3ef08a', orange: '#ff9f1a' })[lk.col] || '#7cc0ff', sty = e.style || lk.style || 'klassisch';
+            const dist = nv.dNext >= 1000 ? (nv.dNext / 1000).toFixed(nv.dNext >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(nv.dNext / 10) * 10 + ' m';
+            const key = [nv.kind, nv.exit, nv.exitAng, dist, nv.street, colr, sty, e.lay, e.box].join('|');
+            if (o.last !== key) {
+              o.last = key; const ic = api.navIcon ? api.navIcon(nv, { style: sty, col: colr, bg: '#0b1626' }) : '';
+              n.querySelector('.dz-navi').className = 'dz-navi dz-navi-' + (e.lay || 'quer') + (e.box ? ' dz-navi-box' : '');
+              n.querySelector('.dz-navi').innerHTML = e.lay === 'pfeil' ? `<i>${ic}</i>` : `<i>${ic}</i><span><b>${dist}</b><small>${esc(nv.street || '')}</small></span>`;
+            }
+            break;
+          }
           case 'next': { const nx = api.next; n.style.visibility = nx ? 'visible' : 'hidden'; if (nx) { api.signHTML(nx.limit, n.querySelector('.sign')); n.querySelector('b').textContent = 'in ' + Math.max(10, Math.round(nx.dist / 10) * 10) + ' m'; } break; }
           case 'bar': {
             const v = api.get(e.src), f = frac(v.n == null ? 0 : v.n, e.min, e.max), fill = n.querySelector('.f'), m = n.querySelector('.m');

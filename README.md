@@ -26,3 +26,11 @@ Weitere Funktionen: Tankstellen und Autobahn-Stau (⛽), Split-Bildschirm (◫),
 
 ## Navi (eingebaut)
 Der 🧭-Knopf öffnet das eigene Navi: Ziel suchen, Route mit Ansagen, Karte (Fahrtrichtung oder Norden oben, verschiebbar), Motorrad-Modus mit Kurven und Landschaft, Vermeiden (Autobahn, Maut, Fähren, Innenstadt), Zuhause/Arbeit/Favoriten, Parken und „Zu Fuß weiter“, Offline-Routen. Im Tacho zeigt ein kleines Fenster Richtung, nächste Abbiegung und Entfernung. Die Navi-Werte (Abbiegung, Entfernung, Straße, Rest, Ankunft) gibt es auch beim Tacho-Erstellen als Quellen. Mehr in der README von GPS-Navi-.
+
+### Navi-Anzeige im Tacho
+- Einstellungen → Tacho-Designs → „Navi im Tacho“: Leiste oben, Leiste unten, schwebendes Fenster, nur im eigenen Design oder aus.
+- Im Creator gibt es das Element „Navi-Anzeige“ (Aufbau quer/hoch/nur Pfeil, Pfeil-Stil, Farbe, Kasten). Steckt es im Design, erscheint das Navi genau dort.
+- Navi → ⚙ Einstellungen (einklappbar): Pfeil-Stil (Klassisch, Schlank, Umriss, Zeichen), Pfeil-Farbe, Schrift und Pfeil (Normal/Groß/Sehr groß), Hintergrund, „danach“ an/aus.
+- Kreisverkehr als Grafik mit Ausfahrt-Nummer und Richtung.
+- Erste Ansage vor dem Abbiegen: 250 m, 500 m, 750 m, 1 km oder nach Tempo; danach 200 m und beim Abbiegen.
+- Sprache: „Ansage bei 1 Kilometer“, „Navi Leiste unten“, „Pfeile groß“.

@@ -60,6 +60,47 @@
   const theme = () => THEMES[A.S.navMap] || THEMES.nacht;
   function setTheme(k) { if (THEMES[k]) { A.S.navMap = k; persist(); renderOpts(); draw(); } }
 
+  // ---------- Anzeige: Pfeil-Stil, Farbe, Größe, Hintergrund, Ansage, Platz im Tacho ----------
+  const LOOK = {
+    style: [['klassisch', 'Klassisch'], ['schlank', 'Schlank'], ['kontur', 'Umriss'], ['zeichen', 'Zeichen']],
+    col: [['blau', 'Blau'], ['weiss', 'Weiß'], ['gelb', 'Gelb'], ['gruen', 'Grün'], ['orange', 'Orange']],
+    size: [['normal', 'Normal'], ['gross', 'Groß'], ['riesig', 'Sehr groß']],
+    bg: [['dunkel', 'Dunkelblau'], ['schwarz', 'Schwarz'], ['hell', 'Hell']],
+    ann: [['250', '250 m'], ['500', '500 m'], ['750', '750 m'], ['1000', '1 km'], ['auto', 'Nach Tempo']],
+    dock: [['oben', 'Leiste oben im Tacho'], ['unten', 'Leiste unten im Tacho'], ['fenster', 'Schwebendes Fenster'], ['design', 'Nur im eigenen Tacho-Design'], ['aus', 'Aus']],
+    then: [['an', 'Danach zeigen'], ['aus', 'Danach ausblenden']]
+  };
+  const LOOKL = { style: 'Pfeil-Stil', col: 'Pfeil-Farbe', size: 'Schrift und Pfeil', bg: 'Hintergrund', ann: 'Erste Ansage vor dem Abbiegen', dock: 'Navi im Tacho', then: 'Nächste Abbiegung' };
+  const COL = { blau: '#7cc0ff', weiss: '#ffffff', gelb: '#ffd400', gruen: '#3ef08a', orange: '#ff9f1a' };
+  const SIZE = { normal: 1, gross: 1.3, riesig: 1.65 };
+  const BG = { dunkel: ['#0b1626f0', '#ffffff', '#0b1626'], schwarz: ['#000000', '#ffffff', '#000000'], hell: ['#f2f5f8f5', '#0b1626', '#f2f5f8'] };
+  const look = () => Object.assign({ style: 'klassisch', col: 'blau', size: 'normal', bg: 'dunkel', ann: '500', dock: 'oben', then: 'an' }, A.S.navLook || {});
+  function setLook(patch) { A.S.navLook = Object.assign(look(), patch); persist(); applyLook(); renderOpts(); if (N.st) paint(N.st); return 'Eingestellt.'; }
+  const arrowCol = (l) => { const c = COL[l.col] || COL.blau; return l.bg === 'hell' && (l.col === 'weiss' || l.col === 'gelb') ? '#1a5fd6' : c; };
+  const iconOf = (st, small) => { const l = look(); return Nav.icon(st, { style: l.style, col: arrowCol(l), bg: BG[l.bg][2] }); };
+  function applyLook() {
+    const l = look(), r = document.documentElement.style;
+    r.setProperty('--nv-scale', SIZE[l.size] || 1); r.setProperty('--nv-bg', BG[l.bg][0]); r.setProperty('--nv-txt', BG[l.bg][1]); r.setProperty('--nv-col', arrowCol(l));
+    document.body.classList.toggle('nv-nothen', l.then === 'aus');
+    document.body.classList.toggle('nv-big', l.size !== 'normal');
+    dock();
+  }
+  // Platz des kleinen Navi-Fensters: als Leiste im Tacho, schwebend, nur im Design oder aus
+  let lastH = -1;
+  function dock() {
+    const mini = $('navmini'), app = document.getElementById('app'); if (!mini) return;
+    const l = look(), b = document.body, hasEl = !!(A.hasNaviEl && A.hasNaviEl());
+    let mode = l.dock; if (mode === 'design' && !hasEl) mode = 'oben';
+    const on = !!N.route && !N.open && mode !== 'aus' && !hasEl;
+    mini.hidden = !on;
+    const docked = on && (mode === 'oben' || mode === 'unten');
+    if (docked && app) { if (mode === 'oben') { const h = document.getElementById('hero'); if (mini.nextSibling !== h) app.insertBefore(mini, h); } else if (mini.parentNode !== app || mini.nextSibling) app.appendChild(mini); }
+    else if (mini.parentNode !== document.body) document.body.appendChild(mini);
+    b.classList.toggle('nv-dock', docked); b.classList.toggle('nv-top', docked && mode === 'oben'); b.classList.toggle('nv-bot', docked && mode === 'unten');
+    const h = docked ? mini.offsetHeight : 0;
+    if (h !== lastH) { lastH = h; document.documentElement.style.setProperty('--nvh', h + 'px'); setTimeout(() => window.dispatchEvent(new Event('resize')), 30); }
+  }
+
   // ---------- Auswahl (Fahrzeug, Kurven, Strecke, Landschaft) ----------
   const OPT = {
     veh: [['auto', 'Auto'], ['motorrad', 'Motorrad'], ['fuss', 'Zu Fuß']],
@@ -71,13 +112,41 @@
   const LBL = { veh: 'Fahrzeug', curves: 'Kurven (Motorrad)', type: 'Streckenart', scenic: 'Landschaft, bei mir mit Aussicht', avoid: 'Vermeiden' };
   const opts = () => Object.assign({ veh: 'auto', curves: 'egal', type: 'normal', scenic: [], avoid: [] }, A.S.navOpt || {});
   function setOpt(patch) { A.S.navOpt = Object.assign(opts(), patch); renderOpts(); persist(); }
-  function renderOpts() {
-    const o = opts(), el = $('nsOpt'); if (!el) return;
-    const groups = Object.keys(OPT).filter((k) => o.veh === 'fuss' ? k === 'veh' : !(k === 'curves' && o.veh !== 'motorrad')).map((k) => `<div class="nsG"><small>${LBL[k]}</small><div class="nsC">${OPT[k].map(([v, t]) => {
-      const on = (k === 'scenic' || k === 'avoid') ? (o[k] || []).includes(v) : o[k] === v; return `<button class="nsChip${on ? ' on' : ''}" data-k="${k}" data-v="${v}">${t}</button>`; }).join('')}</div></div>`);
-    groups.push(`<div class="nsG"><small>Kartenfarbe</small><div class="nsC">${Object.keys(THEMES).map((k) => `<button class="nsChip${(A.S.navMap || 'nacht') === k ? ' on' : ''}" data-theme="${k}">${THEMES[k].n}</button>`).join('')}</div></div>`);
-    el.innerHTML = groups.join('');
+  const fold = () => Object.assign({ route: false, look: false, map: false }, A.S.navFold || {});
+  function optSummary(o) {
+    const t = [OPT.veh.find((x) => x[0] === o.veh)[1]];
+    if (o.veh === 'motorrad' && o.curves !== 'egal') t.push(OPT.curves.find((x) => x[0] === o.curves)[1]);
+    if (o.veh !== 'fuss') { t.push(OPT.type.find((x) => x[0] === o.type)[1]); (o.scenic || []).forEach((v) => t.push(OPT.scenic.find((x) => x[0] === v)[1])); (o.avoid || []).forEach((v) => t.push('ohne ' + OPT.avoid.find((x) => x[0] === v)[1].replace(' umfahren', ''))); }
+    return t.join(' · ');
   }
+  function optsHTML() {
+    const o = opts(), l = look(), fd = fold();
+    const chips = (k, list, on, attr) => `<div class="nsG"><small>${(attr === 'k' ? LBL : LOOKL)[k]}</small><div class="nsC">${list.map(([v, t]) => `<button class="nsChip${on(v) ? ' on' : ''}" data-${attr}="${k}" data-v="${v}">${k === 'style' ? `<i class="nvchip">${Nav.icon({ kind: 'right' }, { style: v, col: arrowCol(l), bg: BG[l.bg][2] })}</i>` : ''}${t}</button>`).join('')}</div></div>`;
+    const route = Object.keys(OPT).filter((k) => o.veh === 'fuss' ? k === 'veh' : !(k === 'curves' && o.veh !== 'motorrad'))
+      .map((k) => chips(k, OPT[k], (v) => ((k === 'scenic' || k === 'avoid') ? (o[k] || []).includes(v) : o[k] === v), 'k')).join('');
+    const lk = Object.keys(LOOK).map((k) => chips(k, LOOK[k], (v) => String(l[k]) === v, 'l')).join('')
+      + `<div class="nvprev">${bannerHTML({ kind: 'roundabout', exit: 2, exitAng: 90, dNext: 350, street: 'Hauptstraße', then: { kind: 'left', d: 900 } })}</div>`;
+    const map = `<div class="nsC">${Object.keys(THEMES).map((k) => `<button class="nsChip${(A.S.navMap || 'nacht') === k ? ' on' : ''}" data-theme="${k}">${THEMES[k].n}</button>`).join('')}</div>`;
+    const sec = (id, title, sub, body) => `<details class="nsFold" data-fold="${id}"${fd[id] ? ' open' : ''}><summary><b>${title}</b><small>${sub}</small></summary>${body}</details>`;
+    return sec('route', 'Route', esc(optSummary(o)), route)
+      + sec('look', 'Anzeige und Ansage', esc([LOOK.style.find((x) => x[0] === l.style)[1], LOOK.size.find((x) => x[0] === l.size)[1], 'Ansage ' + LOOK.ann.find((x) => x[0] === String(l.ann))[1], LOOK.dock.find((x) => x[0] === l.dock)[1]].join(' · ')), lk)
+      + sec('map', 'Kartenfarbe', esc(theme().n), map)
+      + (N.route ? '<button class="act pri" data-reroute="1">Route mit diesen Einstellungen neu berechnen</button>' : '');
+  }
+  function renderOpts() { const h = optsHTML(); document.querySelectorAll('.nsOptBox').forEach((el) => { el.innerHTML = h; }); }
+  // Banner (Pfeil, Entfernung, Straße, danach) – gemeinsam für Tacho-Leiste, Navi-Kopf und Vorschau
+  function bannerHTML(st) {
+    const then = st.then ? `<div class="nvN">danach <i class="nvsm">${iconOf(st.then)}</i> in ${Nav.fmtDist(st.then.d)}</div>` : '';
+    return `<div class="nvI">${iconOf(st)}</div><div class="nvT"><div class="nvD">${Nav.fmtDist(st.dNext)}</div><div class="nvS">${esc(st.street || st.text || '')}</div>${then}</div>`;
+  }
+  function onOptClick(e) {
+    const t = e.target.closest('button[data-theme]'); if (t) { setTheme(t.dataset.theme); return; }
+    if (e.target.closest('[data-reroute]')) { N.ropts = opts(); N.lastRe = 0; $('nsSet').hidden = true; reroute(); return; }
+    const L = e.target.closest('[data-l]'); if (L) { setLook({ [L.dataset.l]: L.dataset.v }); return; }
+    const b = e.target.closest('[data-k]'); if (!b) return; const k = b.dataset.k, v = b.dataset.v, o = opts();
+    if (k === 'scenic' || k === 'avoid') setOpt({ [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : o[k].concat(v) }); else setOpt({ [k]: v });
+  }
+  function onFold(e) { const d = e.target; if (!d.matches || !d.matches('details.nsFold')) return; const f = fold(); f[d.dataset.fold] = d.open; A.S.navFold = f; persist(); }
   function renderPlaces() {
     offRender();
     const el = $('nsPlaces'); if (!el) return; const p = P();
@@ -92,15 +161,15 @@
   // ---------- Aufbau ----------
   function build() {
     const mini = document.createElement('div'); mini.id = 'navmini'; mini.hidden = true;
-    mini.innerHTML = '<b id="nmArrow">⬆</b><div class="nmT"><div id="nmDist">–</div><div id="nmStreet"></div><div id="nmThen"></div></div><div class="nmR"><b id="nmRem">–</b><small id="nmEta"></small><small id="nmDir"></small></div><button id="nmEnd" aria-label="Navigation beenden">✕<small>Ende</small></button>';
+    mini.innerHTML = '<div id="nmBan" class="nvBan"></div><div class="nmR"><b id="nmRem">–</b><small id="nmEta"></small><small id="nmDir"></small></div><button id="nmEnd" aria-label="Navigation beenden">✕<small>Ende</small></button>';
     mini.onclick = () => show();
     mini.querySelector('#nmEnd').onclick = (e) => { e.stopPropagation(); stop(true); };
     document.body.appendChild(mini);
     const scr = document.createElement('div'); scr.id = 'navscreen'; scr.hidden = true;
     scr.innerHTML = `
-      <div id="nsTop"><b id="nsArrow">⬆</b><div class="nsT"><div id="nsDist">–</div><div id="nsStreet"></div><div id="nsThen"></div></div><button id="nsClose" aria-label="Zurück zum Tacho">✕</button></div>
-      <div id="nsSearch"><div id="nsHead"><button id="nsBack">← Zurück zum Tacho</button></div><input id="nsQ" type="search" placeholder="Ziel eingeben: Straße, Ort, Name" autocomplete="off" autocapitalize="words" enterkeyhint="search"><button id="nsGo" class="act pri">Ziel suchen</button><div id="nsRes"></div><div id="nsOff"></div><div id="nsPlaces"></div><div id="nsOpt"></div></div>
-      <div id="nsMapW"><canvas id="nsMap"></canvas><div id="nsZoom"><button data-z="in" aria-label="Näher">＋</button><button data-z="out" aria-label="Weiter weg">－</button><button data-z="auto" id="nsZa">A</button><button data-z="ori" id="nsOri" aria-label="Kartenausrichtung">🧭</button><button data-z="ctr" id="nsCtr" aria-label="Karte zentrieren">🎯</button><button data-z="off" aria-label="Route offline speichern">💾</button><button data-z="end" id="nsEnd" aria-label="Route beenden">⛔</button><button data-z="col" aria-label="Kartenfarbe">🎨</button><button data-z="car" aria-label="Zurück zum Auto">🚗</button><button data-z="alt" aria-label="Andere Route">🔀</button><button data-z="share" aria-label="Ankunft teilen">📤</button><button data-z="walk" aria-label="Zu Fuß weiter">🚶</button><button data-z="park" aria-label="Hier geparkt">🅿</button></div></div>
+      <div id="nsTop"><div id="nsBan" class="nvBan"></div><button id="nsClose" aria-label="Zurück zum Tacho">✕</button></div>
+      <div id="nsSearch"><div id="nsHead"><button id="nsBack">← Zurück zum Tacho</button></div><input id="nsQ" type="search" placeholder="Ziel eingeben: Straße, Ort, Name" autocomplete="off" autocapitalize="words" enterkeyhint="search"><button id="nsGo" class="act pri">Ziel suchen</button><div id="nsRes"></div><div id="nsOff"></div><div id="nsPlaces"></div><div id="nsOpt" class="nsOptBox"></div></div>
+      <div id="nsMapW"><canvas id="nsMap"></canvas><div id="nsZoom"><button data-z="in" aria-label="Näher">＋</button><button data-z="out" aria-label="Weiter weg">－</button><button data-z="more" id="nsMore" aria-label="Mehr Knöpfe">☰</button><button data-z="set" aria-label="Einstellungen">⚙</button><div id="nsMoreB"><button data-z="auto" id="nsZa">A</button><button data-z="ori" id="nsOri" aria-label="Kartenausrichtung">🧭</button><button data-z="ctr" id="nsCtr" aria-label="Karte zentrieren">🎯</button><button data-z="off" aria-label="Route offline speichern">💾</button><button data-z="end" id="nsEnd" aria-label="Route beenden">⛔</button><button data-z="col" aria-label="Kartenfarbe">🎨</button><button data-z="car" aria-label="Zurück zum Auto">🚗</button><button data-z="alt" aria-label="Andere Route">🔀</button><button data-z="share" aria-label="Ankunft teilen">📤</button><button data-z="walk" aria-label="Zu Fuß weiter">🚶</button><button data-z="park" aria-label="Hier geparkt">🅿</button></div></div><div id="nsSet" hidden><div class="nsSetH"><b>Einstellungen</b><button id="nsSetX" aria-label="Schließen">✕</button></div><div class="nsOptBox"></div></div></div>
       <div id="nsLive"><div><b id="lvSpeed">0</b><small id="lvUnit">km/h</small></div><div><b id="lvLimit">–</b><small>Limit</small></div><div><b id="lvAlt">–</b><small id="lvAltN">Höhe</small></div><div><b id="lvDir">–</b><small>Richtung</small></div></div>
       <div id="nsBot"><div><b id="nsRem">–</b><small>Rest</small></div><div><b id="nsEta">–</b><small>Ankunft</small></div><div><b id="nsDur">–</b><small>Dauer</small></div><button id="nsTacho" class="act">Tacho</button><button id="nsStop" class="act">Beenden</button></div>`;
     document.body.appendChild(scr);
@@ -125,24 +194,24 @@
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.off) startOffline(b.dataset.off); else if (b.dataset.deloff) oTx('readwrite', (st) => st.delete(b.dataset.deloff)).then(renderPlaces);
     });
-    $('nsOpt').addEventListener('click', (e) => {
-      const t = e.target.closest('button[data-theme]'); if (t) { setTheme(t.dataset.theme); return; }
-      const b = e.target.closest('[data-k]'); if (!b) return; const k = b.dataset.k, v = b.dataset.v, o = opts();
-      if (k === 'scenic' || k === 'avoid') setOpt({ [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : o[k].concat(v) }); else setOpt({ [k]: v });
-    });
+    document.querySelectorAll('.nsOptBox').forEach((el) => { el.addEventListener('click', onOptClick); el.addEventListener('toggle', onFold, true); });
+    $('nsSetX').onclick = () => { $('nsSet').hidden = true; };
     $('nsZoom').addEventListener('click', (e) => {
       const b = e.target.closest('[data-z]'); if (!b) return; const z = b.dataset.z;
       if (z === 'in') zoom(0.55); else if (z === 'out') zoom(1.8); else if (z === 'auto') { N.zoomAuto = true; draw(); }
       else if (z === 'col') { const ks = Object.keys(THEMES); setTheme(ks[(ks.indexOf(A.S.navMap || 'nacht') + 1) % ks.length]); A.toast('Karte: ' + theme().n, 1500); }
+      else if (z === 'more') { A.S.navMore = !A.S.navMore; persist(); moreBtns(); }
+      else if (z === 'set') { renderOpts(); $('nsSet').hidden = !$('nsSet').hidden; }
       else if (z === 'ori') setOrient(null); else if (z === 'ctr') recenter(); else if (z === 'off') saveOffline(); else if (z === 'end') stop(true);
       else if (z === 'car') backToCar(); else if (z === 'alt') altRoute(); else if (z === 'share') shareEta();
       else if (z === 'walk') walkOn(); else if (z === 'park') saveHere('park');
     });
-    pinch($('nsMap'));
+    pinch($('nsMap')); moreBtns();
     window.addEventListener('resize', () => { if (N.open) draw(); });
     renderOpts(); renderPlaces();
   }
 
+  function moreBtns() { const on = !!A.S.navMore; $('nsMoreB').hidden = !on; $('nsMore').classList.toggle('on', on); $('nsMore').textContent = on ? '▴' : '☰'; }
   function zoom(f) { if (N.zoomAuto) N.zoomHalf = lastSpan; N.zoomAuto = false; N.zoomHalf = Math.max(40, Math.min(9000, N.zoomHalf * f)); draw(); }
   function pinch(cv) {
     const pts = new Map(); let d0 = 0, z0 = 0;
@@ -158,7 +227,7 @@
   function layout() {
     const on = !!N.route;
     $('nsLive').hidden = !on; $('nsSearch').hidden = on; $('nsMapW').hidden = !on; $('nsBot').hidden = !on; $('nsTop').hidden = !on;
-    $('navmini').hidden = !on || N.open;
+    dock();
   }
   function show() { if (N.route) startLoop(); if (!N.open) { try { history.pushState({ navi: 1 }, ''); } catch (e) { /* egal */ } } N.open = true; $('navscreen').hidden = false; renderPlaces(); renderOpts(); layout(); if (N.route) draw(); else setTimeout(() => $('nsQ').focus(), 50); }
   function hide() { if (N.open && history.state && history.state.navi) { history.back(); return; } N.open = false; $('navscreen').hidden = true; layout(); }
@@ -265,19 +334,23 @@
 
   function tick() {
     if (!N.guide || A.R.lat == null) return;
-    const s = N.guide.update(A.R.lat, A.R.lon, A.R.acc); N.st = s; if (!s) return;
+    const l0 = look(), s = N.guide.update(A.R.lat, A.R.lon, A.R.acc, { first: l0.ann, speed: A.R.speed || 0 }); N.st = s; if (!s) return;
     if (s.say.length) speak(s.say.join('. '));
     if (s.arrived) { const walked = N.ropts && N.ropts.veh === 'fuss', hasCar = !!P().park; speak('Sie haben Ihr Ziel erreicht.' + (walked && hasCar ? ' Für den Rückweg sagen Sie: Zurück zum Auto.' : '')); A.toast(walked && hasCar ? 'Ziel erreicht. Zurück zum Auto: 🚗 tippen.' : 'Ziel erreicht.', 6000); stop(false); return; }
     if (s.off) reroute();
-    const then = s.then ? 'danach ' + s.then.arrow + ' in ' + Nav.fmtDist(s.then.d) : '';
-    const lv = A.live ? A.live() : null;
-    $('nmArrow').textContent = s.arrow; $('nmDist').textContent = Nav.fmtDist(s.dNext); $('nmStreet').textContent = s.street || s.text; $('nmThen').textContent = then;
-    $('nmRem').textContent = Nav.fmtDist(s.remain); $('nmEta').textContent = 'an ' + eta(s.remainT); $('nmDir').textContent = lv ? lv.dir : '';
+    paint(s);
     if (N.open) {
-      $('nsArrow').textContent = s.arrow; $('nsDist').textContent = Nav.fmtDist(s.dNext); $('nsStreet').textContent = s.street || s.text; $('nsThen').textContent = then;
       $('nsRem').textContent = Nav.fmtDist(s.remain); $('nsEta').textContent = eta(s.remainT); $('nsDur').textContent = Nav.fmtTime(s.remainT);
       draw();
     }
+  }
+  let lastKey = '';
+  function paint(s) {
+    const lv = A.live ? A.live() : null;
+    const key = [s.kind, s.exit, s.exitAng, Nav.fmtDist(s.dNext), s.street || s.text, s.then ? s.then.kind + Nav.fmtDist(s.then.d) : '', look().style, look().col, look().bg].join('|');
+    if (key !== lastKey) { lastKey = key; const h = bannerHTML(s); $('nmBan').innerHTML = h; $('nsBan').innerHTML = h; }
+    $('nmRem').textContent = Nav.fmtDist(s.remain); $('nmEta').textContent = 'an ' + eta(s.remainT); $('nmDir').textContent = lv ? lv.dir : '';
+    dock();
   }
   function live() {
     if (!N.open || !A.live) return;
@@ -407,12 +480,13 @@
     const bar = [50, 100, 200, 500, 1000, 2000, 5000].find((m) => m * sc > 60) || 5000; g.fillStyle = th.core; g.fillRect(12, H - 18, bar * sc, 3); g.font = '12px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText(bar >= 1000 ? bar / 1000 + ' km' : bar + ' m', 12, H - 24);
   }
 
+  function navState() { const s = N.st; if (!N.route || !s) return null; return { kind: s.kind, exit: s.exit, exitAng: s.exitAng, dNext: s.dNext, street: s.street || s.text || '', then: s.then, remain: s.remain, remainT: s.remainT, look: look() }; }
   function vals() {
     const s = N.st;
     if (!N.route || !s) return { navdist: '–', navturn: '', navstreet: '', navremain: '–', navdur: '–', naveta: '–', navactive: false };
     return { navdist: Nav.fmtDist(s.dNext), navturn: s.arrow, navstreet: s.street || s.text || '', navremain: Nav.fmtDist(s.remain), navdur: Nav.fmtTime(s.remainT), naveta: eta(s.remainT), navactive: true };
   }
 
-  function init(api) { A = api; build(); layout(); }
-  root.NavUI = { backToCar, altRoute, shareEta, setOrient, recenter, saveOffline, startOffline, setAvoid: (id, on) => { const o = opts(); const l = on ? (o.avoid.includes(id) ? o.avoid : o.avoid.concat(id)) : o.avoid.filter((x) => x !== id); setOpt({ avoid: l }); return l; }, zoomIn: () => zoom(0.55), zoomOut: () => zoom(1.8), zoomAuto: () => { N.zoomAuto = true; draw(); }, setOpt, opts, setTheme, init, show, hide, go, start, stop, onFix, repeat, info, vals, search, saveHere, walkOn, resolve, places: P, active: () => !!N.route, isOpen: () => N.open };
+  function init(api) { A = api; build(); applyLook(); layout(); }
+  root.NavUI = { setLook, look, navState, dock, backToCar, altRoute, shareEta, setOrient, recenter, saveOffline, startOffline, setAvoid: (id, on) => { const o = opts(); const l = on ? (o.avoid.includes(id) ? o.avoid : o.avoid.concat(id)) : o.avoid.filter((x) => x !== id); setOpt({ avoid: l }); return l; }, zoomIn: () => zoom(0.55), zoomOut: () => zoom(1.8), zoomAuto: () => { N.zoomAuto = true; draw(); }, setOpt, opts, setTheme, init, show, hide, go, start, stop, onFix, repeat, info, vals, search, saveHere, walkOn, resolve, places: P, active: () => !!N.route, isOpen: () => N.open };
 })(window);

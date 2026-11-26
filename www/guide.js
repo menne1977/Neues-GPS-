@@ -25,7 +25,7 @@ const Guide = (() => {
     ['Wetter', ['temp', 'feels', 'gust', 'wind', 'winddir', 'hum', 'rain', 'wx']],
     ['Handy', ['battery']]
   ];
-  const PARTS = [['sign', 'Tempo-Schild'], ['road', 'Straßenname-Zeile'], ['next', 'Nächstes Limit'], ['gauge', 'Rundinstrument Tempo mit Nadel'], ['bar', 'Tempo-Balken mit Limit-Strich']];
+  const PARTS = [['sign', 'Tempo-Schild'], ['road', 'Straßenname-Zeile'], ['next', 'Nächstes Limit'], ['gauge', 'Rundinstrument Tempo mit Nadel'], ['bar', 'Tempo-Balken mit Limit-Strich'], ['navi', 'Navi-Anzeige (Abbiege-Pfeil, Entfernung, Straße)']];
   const DEF = { orient: 'land', aspect: '2.1667', look: 'real', srcs: ['speed', 'max', 'trip', 'day', 'total', 'time', 'clock', 'dirname', 'alt', 'temp'], parts: ['sign', 'road', 'next', 'bar'], colors: '', notes: '' };
 
   const EXAMPLE = {
@@ -76,6 +76,7 @@ TYPEN ("t") UND IHRE FELDER (nur diese Typen gibt es)
 - "sign": rundes Tempolimit-Schild (passt sich selbst an)
 - "road": Name der aktuellen Straße. size, color, font, weight, align
 - "next": nächstes Tempolimit mit Entfernung. size
+- "navi": Navi-Anzeige mit Abbiege-Pfeil (auch Kreisverkehr), Entfernung und Straße; nur sichtbar bei laufender Route. size, lay ("quer" | "hoch" | "pfeil"), color (leer = wie im Navi), style ("klassisch" | "schlank" | "kontur" | "zeichen"), box (true/false)
 - "image": nur wenn ich ein Bild mitgebe, "img" als data:-URL
 Weitere Felder bei allen: "rot" (Drehung), "op" (0 bis 1), "show": "always" | "over" (nur zu schnell) | "hasLimit".
 size ist die Schriftgröße in Prozent der Flächenhöhe. h muss mindestens size × 1,3 sein, sonst wird abgeschnitten. font: "sans","condensed","mono","serif". weight: 400, 600, 800 oder 900. align: "l","c","r". stc:true färbt nach Tempolimit (grün, gelb, rot).

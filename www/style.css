@@ -229,3 +229,60 @@ body.cd #mic svg{width:24px;height:24px}
 #nsBot #nsStop{background:#7a1f18;border-color:#ff6b5a;color:#fff;font-weight:800}
 #nsOff{margin-top:12px}
 #nsBot{flex-wrap:wrap;gap:8px 6px} #nsBot div{flex:1 1 28%;min-width:0} #nsBot b{font-size:20px} #nsBot .act{flex:1 1 44%;min-height:54px;font-size:17px;padding:0 10px}
+/* Navi-Banner: Pfeil-Grafik, lesbar einstellbar */
+.nvBan{display:flex;align-items:center;gap:calc(12px*var(--nv-scale,1));flex:1;min-width:0}
+.nvI{flex:none;width:calc(62px*var(--nv-scale,1));height:calc(62px*var(--nv-scale,1));display:flex;align-items:center;justify-content:center}
+.nvico{width:100%;height:100%;display:block}
+.nvemo{font-size:calc(50px*var(--nv-scale,1));line-height:1;font-weight:800} .nvemo sup{font-size:.4em}
+.nvT{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.nvD{font-size:calc(30px*var(--nv-scale,1));font-weight:800;line-height:1.05}
+.nvS{font-size:calc(15px*var(--nv-scale,1));opacity:.88;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nvN{font-size:calc(13px*var(--nv-scale,1));opacity:.85;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.nvsm{display:inline-block;width:1.7em;height:1.7em;flex:none}
+body.nv-nothen .nvN{display:none}
+#navmini,#nsTop{background:var(--nv-bg,#0b1626ee);color:var(--nv-txt,#fff)}
+#navmini .nmR{color:var(--nv-txt,#fff)}
+/* Navi als Leiste im Tacho */
+body.nv-dock #navmini{position:relative;left:auto;top:auto;bottom:auto;transform:none;min-width:0;width:auto;z-index:2;border-radius:16px;box-shadow:none;margin:0}
+body.port.nv-top #app{grid-template-rows:auto auto minmax(0,47fr) minmax(0,53fr)}
+body.port.nv-bot #app{grid-template-rows:auto minmax(0,47fr) minmax(0,53fr) auto}
+body.land.nv-top #app{grid-template-rows:auto auto minmax(0,1fr)}
+body.land.nv-bot #app{grid-template-rows:auto minmax(0,1fr) auto}
+body.land.nv-dock #navmini{grid-column:1/-1}
+body.cd.nv-dock #navmini{position:fixed;left:max(6px,env(safe-area-inset-left));right:max(6px,env(safe-area-inset-right));z-index:5}
+body.cd.nv-top #navmini{top:max(6px,env(safe-area-inset-top))} body.cd.nv-bot #navmini{bottom:max(6px,env(safe-area-inset-bottom))}
+body.cd.nv-top #custom{top:calc(var(--nvh,0px) + 12px)} body.cd.nv-bot #custom{bottom:calc(var(--nvh,0px) + 12px)}
+body.cd.nv-top #bar{top:calc(var(--nvh,0px) + 14px)}
+body.nv-bot #mic{bottom:calc(var(--nvh,0px) + 22px)}
+/* Knopf-Spalte einklappbar, Einstellungen über der Karte */
+#nsMoreB{display:contents} #nsMoreB[hidden],#nsSet[hidden]{display:none!important}
+#nsZoom #nsMore.on{background:#2f8bff;border-color:#fff}
+#nsSet{position:absolute;inset:8px;z-index:4;background:#0b1626f7;border:1px solid #2f8bff66;border-radius:16px;padding:10px 12px;overflow:auto;color:#fff}
+.nsSetH{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px} .nsSetH b{font-size:20px} #nsSetX{width:46px;height:46px;border-radius:12px;border:1px solid #ffffff44;background:#14233d;color:#fff;font-size:20px}
+details.nsFold{margin:8px 0;border:1px solid #2f8bff44;border-radius:14px;background:#0f1d33;overflow:hidden}
+details.nsFold>summary{list-style:none;cursor:pointer;padding:13px 44px 13px 14px;position:relative;display:flex;flex-direction:column;gap:3px}
+details.nsFold>summary::-webkit-details-marker{display:none}
+details.nsFold>summary::after{content:"▾";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:20px;transition:transform .2s} details.nsFold[open]>summary::after{transform:translateY(-50%) rotate(180deg)}
+details.nsFold>summary b{font-size:17px} details.nsFold>summary small{font-size:13px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.nsFold>.nsG,details.nsFold>.nsC,details.nsFold>.nvprev{margin:0 12px 12px}
+.nvchip{display:inline-block;width:22px;height:22px;vertical-align:middle;margin-right:6px}
+.nvprev{display:flex;background:var(--nv-bg);color:var(--nv-txt);border-radius:16px;padding:10px 14px}
+.dz-navi{display:flex;align-items:center;gap:.35em;width:100%;height:100%;color:#fff;overflow:hidden}
+.dz-navi-box{background:#0b1626d9;border-radius:.5em;padding:.15em .4em}
+.dz-navi i{flex:none;height:100%;aspect-ratio:1;display:flex} .dz-navi i .nvico{width:100%;height:100%} .dz-navi i .nvemo{font-size:1.6em;margin:auto}
+.dz-navi span{display:flex;flex-direction:column;min-width:0;line-height:1.05} .dz-navi b{font-size:1em;font-weight:800} .dz-navi small{font-size:.5em;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dz-navi-hoch{flex-direction:column;justify-content:center;text-align:center} .dz-navi-hoch i{height:58%} .dz-navi-hoch span{align-items:center}
+.dz-navi-pfeil{justify-content:center}
+.nvD{white-space:nowrap}
+body.nv-dock #navmini{padding:6px 12px;gap:10px}
+body.land.nv-dock .nvI{width:calc(46px*var(--nv-scale,1));height:calc(46px*var(--nv-scale,1))}
+body.land.nv-dock .nvD{font-size:calc(24px*var(--nv-scale,1))}
+body.land.nv-dock .nvBan{gap:10px} body.land.nv-dock .nvT{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:12px}
+body.land.nv-dock #hero{--sg:calc(var(--hs)*min(17vw,(100vh - var(--nvh,0px))*.3))}
+body.port.nv-dock #hero{--sg:calc(var(--hs)*min(25vw,(100vh - var(--nvh,0px))*.135))}
+.nvchip .nvemo{font-size:20px;display:block;line-height:22px;text-align:center}
+.nvT{overflow:hidden}
+.nvI{max-width:24vw;max-height:24vw}
+.nvD{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+body.port.nv-big #navmini .nmR{display:none}
+body.port.nv-big .nvD{font-size:calc(min(30px*var(--nv-scale,1),11vw))}

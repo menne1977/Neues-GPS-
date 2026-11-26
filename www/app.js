@@ -99,6 +99,7 @@
       else await screen.orientation.lock(S.layout === 'land' ? 'landscape' : 'portrait');
     } catch (e) { /* nicht überall erlaubt, das Layout folgt trotzdem */ }
   }
+  addEventListener('resize', () => { if (cur && cur.m) cur.m.layout(); });
   addEventListener('resize', () => { applyLook(); render(); clearTimeout(R.msT); R.msT = setTimeout(measureScr, 700); });
   setTimeout(measureScr, 1500);
 
@@ -465,17 +466,18 @@
   const wxText = (c) => c == null ? '–' : c === 0 ? 'Klar' : c <= 2 ? 'Heiter' : c === 3 ? 'Bewölkt' : c <= 48 ? 'Nebel' : c <= 57 ? 'Niesel' : c <= 67 ? 'Regen' : c <= 77 ? 'Schnee' : c <= 82 ? 'Schauer' : c <= 86 ? 'Schneeschauer' : 'Gewitter';
   try { if (navigator.getBattery) navigator.getBattery().then((b) => { const u = () => { R.batt = Math.round(b.level * 100); }; u(); b.addEventListener('levelchange', u); }); } catch (e) { /* egal */ }
   function designApi() {
-    return { get: getVal, state: R.state, limit: R.limit, limitKmh: limitKmh(), fu: fu(), road: R.road, next: S.preview ? R.next : null, limitObj: R.limit, signHTML };
+    return { get: getVal, state: R.state, limit: R.limit, limitKmh: limitKmh(), fu: fu(), road: R.road, next: S.preview ? R.next : null, limitObj: R.limit, signHTML, nav: window.NavUI ? NavUI.navState() : null, navIcon: (st, o) => Nav.icon(st, o) };
   }
   const wantDesign = () => (isSplit() && S.dSplit) ? S.dSplit : (isLand() ? S.dLand : S.dPort);
   async function applyDesign() {
     const name = wantDesign(), b = document.body;
-    if (!name) { if (cur) { cur = null; $('#custom').innerHTML = ''; } b.classList.remove('cd'); return; }
+    if (!name) { if (cur) { cur = null; $('#custom').innerHTML = ''; } b.classList.remove('cd'); if (window.NavUI) NavUI.dock(); return; }
     if (cur && cur.name === name && cur.fill === isSplit()) { cur.m.layout(); return; }
     let d = null; try { d = await Design.Store.get(name); } catch (e) { /* kein Speicher */ }
     if (!d) { b.classList.remove('cd'); cur = null; return; }
     if (wantDesign() !== name) return;
     b.classList.add('cd'); const fill = isSplit(); cur = { name, d, fill, m: Design.mount($('#custom'), d, { fill }) };
+    if (window.NavUI) NavUI.dock();
   }
   let designList = [];
   // Jedes gespeicherte Design wird zusätzlich in den Ordner Documents/Tacho-Designs geschrieben
@@ -579,7 +581,7 @@
     window.open(url, '_blank');
   }
   if (window.NavUI) NavUI.init({
-    R, S, toast, save, fetch: (u, o) => fetch(u, o), roads: () => engine.roads, heading: () => headingNow(),
+    R, S, toast, save, hasNaviEl: () => !!(cur && cur.d && cur.d.els.some((e) => e.t === 'navi')), fetch: (u, o) => fetch(u, o), roads: () => engine.roads, heading: () => headingNow(),
     live: () => { const av = altVals(), h = headingNow(); return { speed: S.decimals ? fmt(R.speed * fu(), 1) : String(Math.round(R.speed * fu())), unit: uName(), limit: R.limit && R.limit.v != null ? String(Math.round(R.limit.v * fu())) : (R.limit && R.limit.kind === 'none' ? '∞' : '–'), alt: av.sel != null ? Math.round(av.sel) + ' m' : '–', altName: 'Höhe ' + ALTN[S.altRef], dir: h != null ? dirName(h) + ' ' + Math.round(h) + '°' : '–' }; },
     speak: (t) => { if (Voice) Voice.speak({ text: t, pitch: 1, rate: 1.02, voice: '', volume: S.vol }).catch(() => {}); else if (window.speechSynthesis) { try { speechSynthesis.speak(new SpeechSynthesisUtterance(t)); } catch (e) { /* egal */ } } }
   });
@@ -669,6 +671,7 @@
       case 'navto': if (S.navi === 'intern') return NavUI.go(a.q); navigateTo({ query: a.q }); return Promise.resolve('Navigation nach ' + a.q + ' gestartet.');
       case 'navopt': { const o = NavUI.opts(); const p = Object.assign({}, a.p || {}); if (a.add) p.scenic = o.scenic.includes(a.add) ? o.scenic : o.scenic.concat(a.add); NavUI.setOpt(p); return Promise.resolve(a.say || 'Eingestellt.'); }
       case 'naviorient': if (a.v === 'center') NavUI.recenter(); else NavUI.setOrient(a.v); return Promise.resolve(a.say);
+      case 'navlook': NavUI.setLook(a.p); return Promise.resolve(a.say || 'Eingestellt.');
       case 'navalt': return NavUI.altRoute();
       case 'navshare': return NavUI.shareEta();
       case 'navoffline': return a.name ? NavUI.startOffline(a.name) : NavUI.saveOffline();
@@ -818,7 +821,7 @@
       case 'settotal': S.total = a.n; msg = 'Gesamtkilometer ' + a.n + '.'; break;
       case 'navi': S.navi = a.id; msg = 'Navigation mit ' + NAVI[a.id] + '.'; break;
       case 'phone': phoneAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e))); break;
-      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto': case 'navopt': case 'navstop': case 'navinfo': case 'navrepeat': case 'navshow': case 'navsave': case 'navwalk': case 'navtheme': case 'navzoom': case 'navavoid': case 'naviorient': case 'navoffline': case 'navalt': case 'navshare':
+      case 'openapp': case 'closeapp': case 'sys': case 'scroll': case 'click': case 'type': case 'media': case 'sysvol': case 'split': case 'navto': case 'navopt': case 'navstop': case 'navinfo': case 'navrepeat': case 'navshow': case 'navsave': case 'navwalk': case 'navtheme': case 'navzoom': case 'navavoid': case 'naviorient': case 'navoffline': case 'navalt': case 'navshare': case 'navlook':
         if (!['sys', 'media', 'sysvol', 'openapp'].includes(a.act) && !/^nav/.test(a.act) && !S.appCtl && a.act !== 'split') { msg = 'Schalte zuerst unter Einstellungen, Apps „Andere Apps per Sprache bedienen“ ein.'; break; }
         appAct(a).then((t) => { if (t) say(t); }).catch((e) => say(errMsg(e)));
         break;
@@ -888,6 +891,8 @@
       ${sel('dLand', 'Tacho quer', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
       ${sel('dSplit', 'Tacho im geteilten Bildschirm', [['', 'wie quer/hochkant']].concat(designList.map((d) => [d.name, d.name])))}
       ${sel('dPort', 'Tacho hochkant', [['', 'Kacheln (Standard)']].concat(designList.map((d) => [d.name, d.name])))}
+      <div class="row"><label>Navi im Tacho<small>Pfeil, Entfernung und Straße bei laufender Route</small></label><select data-nl="dock">${[['oben', 'Leiste oben im Tacho'], ['unten', 'Leiste unten im Tacho'], ['fenster', 'Schwebendes Fenster'], ['design', 'Nur im eigenen Design (Navi-Element)'], ['aus', 'Aus']].map(([v, t]) => `<option value="${v}" ${window.NavUI && NavUI.look().dock === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="info">Tipp: Im Creator gibt es das Element „Navi-Anzeige“. Steckt es im Design, erscheint das Navi genau dort.</div>
       <button class="act pri" data-do="dnew">Eigenen Tacho erstellen</button>
       <button class="act" data-do="gguide">Anleitung</button>
       <button class="act" data-do="gai">KI-Text kopieren (für andere KI)</button>
@@ -904,6 +909,7 @@
       <button class="act" data-do="accopen">Bedienungshilfe prüfen und öffnen</button>
       <div class="row"><label>App für den geteilten Bildschirm<small>${S.splitApp.label ? Design.esc(S.splitApp.label) : 'noch keine gewählt'}</small></label><button class="mv" style="width:auto;padding:0 10px" data-do="appsload">Wählen</button></div>
       <div id="applist" class="applist"></div>
+      <div class="row"><label>Erste Navi-Ansage vor dem Abbiegen</label><select data-nl="ann">${[['250', '250 m'], ['500', '500 m'], ['750', '750 m'], ['1000', '1 km'], ['auto', 'Nach Tempo']].map(([v, t]) => `<option value="${v}" ${window.NavUI && String(NavUI.look().ann) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       ${sel('navi', 'Navigation', [['intern', 'Eigenes Navi (in der App)'], ['google', 'Google Maps'], ['sygic', 'Sygic'], ['geo', 'Andere Karten-App'], ['ask', 'Jedes Mal fragen']])}
       <div class="row"><label>Tankstellen-Umkreis (km)</label><input type="number" min="1" max="100" data-k="fuelKm" value="${S.fuelKm}" style="width:80px"></div>
       <div class="info">Geteilter Bildschirm: Knopf ◫ oben oder „Split mit Navigation“. Mit eingeschalteter Bedienungshilfe teilt die App den Bildschirm selbst, sonst öffnet sie die Wunsch-App daneben.</div>`);
@@ -921,6 +927,7 @@
 
   $('#panel').addEventListener('change', (e) => {
     const t = e.target;
+    if (t.dataset.nl && window.NavUI) { NavUI.setLook({ [t.dataset.nl]: t.value }); return; }
     if (t.dataset.k) {
       const k = t.dataset.k; let v = t.type === 'checkbox' ? t.checked : (t.type === 'range' || t.type === 'number' || ['colsP', 'colsL'].includes(k) ? +t.value : t.value);
       if (t.type === 'checkbox') return run({ act: 'toggle', key: k, on: v });
