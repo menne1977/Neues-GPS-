@@ -386,6 +386,25 @@
     return out.filter((r) => !r.foot).sort((a, b) => a.at - b.at);
   }
 
+  // Feste Blitzer entlang der Route (OSM highway=speed_camera)
+  async function cams(rt, fetchFn) {
+    const idx = []; let next = 0;
+    for (let i = 0; i < rt.shape.length; i++) if (rt.cum[i] >= next || i === rt.shape.length - 1) { idx.push(i); next = rt.cum[i] + 120; }
+    const out = [], seen = new Set();
+    for (let i = 0; i < idx.length; i += 150) {
+      const part = idx.slice(Math.max(0, i - 1), i + 150); if (part.length < 2) continue;
+      const ll = part.map((k) => rt.shape[k].lat.toFixed(5) + ',' + rt.shape[k].lon.toFixed(5)).join(',');
+      const j = await overpass(`[out:json][timeout:25];node(around:35,${ll})["highway"="speed_camera"];out 300;`, fetchFn);
+      for (const e of j.elements || []) {
+        if (seen.has(e.id) || e.lat == null) continue; seen.add(e.id);
+        const p = proj(rt, e.lat, e.lon); if (p.d > 40) continue;
+        const ms = parseInt((e.tags || {}).maxspeed, 10);
+        out.push({ id: e.id, lat: e.lat, lon: e.lon, at: p.at, max: ms > 0 ? ms : null });
+      }
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }
+
   class Guide {
     constructor(rt) { this.rt = rt; this.idx = 0; this.off = 0; this.said = {}; this.arrived = false; this.state = null; }
     // Abstand von p zum Streckenstück k, plus Anteil t (0..1) und Meter entlang der Route
@@ -473,6 +492,6 @@
   const fmtDist = (m) => (m == null ? '–' : m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m');
   const fmtTime = (s) => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
 
-  const api = { proj, rails, icon, finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
+  const api = { proj, rails, cams, icon, finish, overpass, geocode, route, plan, describe, curviness, scenic, LAND, Guide, decode6, hav, ARROW, fmtDist, fmtTime, distSay: Guide.dist };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Nav = api;
 })(typeof window !== 'undefined' ? window : globalThis);

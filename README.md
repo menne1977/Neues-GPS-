@@ -44,3 +44,4 @@ Der 🧭-Knopf öffnet das eigene Navi: Ziel suchen, Route mit Ansagen, Karte (F
 - **Stimme:** alle deutschen Stimmen des Handys (Mann/Frau, „online“ = natürlich) und Sprechart Normal, Ernst, Ruhig, Lustig, Schnell, Tief, Hoch.
 - **Menü:** Kacheln für Ziele, einklappbare Einstellungen; Querformat mit Karte links und Infos rechts.
 - **Navi-Designs:** Navi Quer, Navi Hochformat, Navi Split Hoch, Navi Split Quer (Navi auf einem Viertel, Blau-Grau, Tempo grün, Rest gelb, Ankunft orange). Einstellungen → Tacho-Designs → „Navi-Designs verwenden“.
+- **Blitzer-Warnung (optional, standardmäßig aus):** feste Blitzer aus OpenStreetMap mit Tempolimit, Ansage etwa 400–900 m vorher. Hinweis: Für Fahrzeugführer (auch Radfahrer) ist die Nutzung während der Fahrt verboten (§ 23 Abs. 1c StVO). Keine mobilen Blitzer.

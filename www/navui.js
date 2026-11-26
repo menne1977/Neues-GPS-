@@ -118,10 +118,11 @@
     prev: [['an', 'Routenvorschau mit Alternativen'], ['aus', 'Sofort losfahren']],
     prevAuto: [['an', 'Vorschau startet nach 12 s von selbst'], ['aus', 'Nur mit „Los“']],
     off: [['an', 'Strecke automatisch offline sichern'], ['aus', 'Nicht sichern']],
-    snap: [['an', 'Position auf die Straße einrasten'], ['aus', 'Rohes GPS zeigen']]
+    snap: [['an', 'Position auf die Straße einrasten'], ['aus', 'Rohes GPS zeigen']],
+    cam: [['aus', 'Aus'], ['an', 'Feste Blitzer ansagen']]
   };
-  const XL = { rail: 'Warnung vor Bahnübergängen', jam: 'Staus auf der Route (Autobahn)', prev: 'Vor dem Start', prevAuto: 'Vorschau', off: 'Funkloch-Schutz', snap: 'GPS-Anzeige' };
-  const X = () => Object.assign({ rail: 'unsicher', jam: 'frage', prev: 'an', prevAuto: 'an', off: 'an', snap: 'an' }, A.S.navX || {});
+  const XL = { rail: 'Warnung vor Bahnübergängen', jam: 'Staus auf der Route (Autobahn)', prev: 'Vor dem Start', prevAuto: 'Vorschau', off: 'Funkloch-Schutz', snap: 'GPS-Anzeige', cam: 'Blitzer-Warnung (für Fahrer verboten, § 23 Abs. 1c StVO – nur Daten aus OpenStreetMap, keine mobilen Blitzer)' };
+  const X = () => Object.assign({ rail: 'unsicher', jam: 'frage', prev: 'an', prevAuto: 'an', off: 'an', snap: 'an', cam: 'aus' }, A.S.navX || {});
   function setX(patch) { A.S.navX = Object.assign(X(), patch); persist(); renderOpts(); return 'Eingestellt.'; }
   function setSpeech(patch) { A.S.navSpeech = Object.assign(speech(), patch); persist(); renderOpts(); return 'Eingestellt.'; }
   const fold = () => Object.assign({ route: false, look: false, map: false, voice: false, extra: false, here: false }, A.S.navFold || {});
@@ -359,7 +360,8 @@
 
   // ---------- Nach dem Routenstart: Bahnübergänge, Offline-Kopie ----------
   function afterRoute(keepRoads) {
-    const rt = N.route; N.rails = []; N.railSaid = {}; if (!rt) return;
+    const rt = N.route; N.rails = []; N.railSaid = {}; N.cams = []; N.camSaid = {}; if (!rt) return;
+    if (X().cam === 'an' && A.S.online !== false) Nav.cams(rt, A.fetch).then((l) => { if (N.route === rt) N.cams = l; }).catch(() => { /* egal */ });
     if (X().rail !== 'aus' && A.S.online !== false) Nav.rails(rt, A.fetch).then((l) => {
       if (N.route !== rt) return; N.rails = l; const n = l.filter((r) => r.kind === 'offen').length;
       if (n) A.toast(n === 1 ? 'Auf der Route: 1 Bahnübergang ohne Schranke' : 'Auf der Route: ' + n + ' Bahnübergänge ohne Schranke', 5000);
@@ -376,6 +378,14 @@
       const far = Math.max(300, Math.min(800, (A.R.speed || 0) * 15)), nm = RAILN[r.kind];
       if (d <= far + 30 && d > 130 && !N.railSaid[r.id + 'f']) { N.railSaid[r.id + 'f'] = 1; speak('Achtung, ' + nm + ' in ' + Nav.distSay(Math.round(d / 50) * 50) + '.'); warnShow('🚂', nm.charAt(0).toUpperCase() + nm.slice(1), d); }
       if (d <= 130 && d > 0 && !N.railSaid[r.id + 'n']) { N.railSaid[r.id + 'n'] = 1; N.railSaid[r.id + 'f'] = 1; if (r.kind !== 'gesichert') speak('Achtung, Bahnübergang!'); warnShow('🚂', nm.charAt(0).toUpperCase() + nm.slice(1), d); }
+    }
+  }
+  function camCheck(s) {
+    if (X().cam !== 'an' || !N.cams || !N.cams.length || s.off) return;
+    for (const c of N.cams) {
+      const d = c.at - s.along; if (d < 0 || d > 1200) continue;
+      const far = Math.max(400, Math.min(900, (A.R.speed || 0) * 20));
+      if (d <= far && !N.camSaid[c.id]) { N.camSaid[c.id] = 1; speak('Blitzer in ' + Nav.distSay(Math.round(d / 50) * 50) + (c.max ? ', erlaubt ' + c.max + '.' : '.')); warnShow('📷', 'Blitzer' + (c.max ? ' · ' + c.max + ' km/h' : ''), d); }
     }
   }
   let warnT = 0;
@@ -517,7 +527,7 @@
     if (s.say.length) speak(s.say.join('. '));
     if (s.arrived) { const walked = N.ropts && N.ropts.veh === 'fuss', hasCar = !!P().park; speak('Sie haben Ihr Ziel erreicht.' + (walked && hasCar ? ' Für den Rückweg sagen Sie: Zurück zum Auto.' : '')); A.toast(walked && hasCar ? 'Ziel erreicht. Zurück zum Auto: 🚗 tippen.' : 'Ziel erreicht.', 6000); stop(false); return; }
     if (s.off) reroute();
-    paint(s); railCheck(s); jamCheck(s);
+    paint(s); railCheck(s); camCheck(s); jamCheck(s);
     if (N.open) {
       $('nsRem').textContent = Nav.fmtDist(s.remain); $('nsEta').textContent = eta(s.remainT); $('nsDur').textContent = Nav.fmtTime(s.remainT);
       draw();
@@ -620,7 +630,7 @@
       A.toast('Route wird für offline gespeichert …', 6000);
       const { ways, fail } = await roadsAlong(rt, (c, n) => A.toast('Straßen laden ' + c + '/' + n, 4000));
       const flat = []; rt.shape.forEach((p) => flat.push(+p.lat.toFixed(6), +p.lon.toFixed(6)));
-      const rec = { id: 'r' + Date.now(), t: Date.now(), name, dest: { name: (N.dest && N.dest.name) || name, lat: N.dest ? N.dest.lat : rt.shape[rt.shape.length - 1].lat, lon: N.dest ? N.dest.lon : rt.shape[rt.shape.length - 1].lon }, ropts: N.ropts || opts(), len: rt.len, dur: rt.dur, shape: flat, steps: rt.steps, roads: ways, rails: N.rails || [], fail };
+      const rec = { id: 'r' + Date.now(), t: Date.now(), name, dest: { name: (N.dest && N.dest.name) || name, lat: N.dest ? N.dest.lat : rt.shape[rt.shape.length - 1].lat, lon: N.dest ? N.dest.lon : rt.shape[rt.shape.length - 1].lon }, ropts: N.ropts || opts(), len: rt.len, dur: rt.dur, shape: flat, steps: rt.steps, roads: ways, rails: N.rails || [], cams: N.cams || [], fail };
       await oTx('readwrite', (s) => s.put(rec)); N.offRoads = unpackRoads(ways);
       const m = 'Route „' + name + '“ ist offline gespeichert' + (fail ? ' (Karte teilweise, ' + fail + ' Abschnitte fehlten)' : '') + '.'; A.toast(m, 6000); speak(m); renderPlaces(); N.saving = false; return m;
     } catch (e) { N.saving = false; const m = 'Offline speichern fehlgeschlagen: ' + ((e && e.message) || e); A.toast(m, 6000); return m; }
@@ -630,7 +640,7 @@
     const shape = []; for (let i = 0; i < rec.shape.length; i += 2) shape.push({ lat: rec.shape[i], lon: rec.shape[i + 1] });
     const rt = Nav.finish(shape, rec.steps, rec.len, rec.dur);
     N.dest = rec.dest; N.route = rt; N.ropts = rec.ropts; N.guide = new Nav.Guide(rt); N.st = null; N.lastRe = Date.now(); N.zoomAuto = true; N.pan = { x: 0, y: 0 };
-    N.offRoads = unpackRoads(rec.roads); N.rails = rec.rails || []; N.railSaid = {}; N.desc = ''; layout(); hide(); A.onRoute && A.onRoute(true);
+    N.offRoads = unpackRoads(rec.roads); N.rails = rec.rails || []; N.railSaid = {}; N.cams = rec.cams || []; N.camSaid = {}; N.desc = ''; layout(); hide(); A.onRoute && A.onRoute(true);
     const m = 'Offline-Route nach ' + rec.name + ', ' + meters(rt.len) + '.'; A.toast(m, 5000); speak(m + ' ' + (rt.steps[0] ? rt.steps[0].say : '')); tick(); return m;
   }
   async function offRender() {
@@ -670,6 +680,7 @@
     // Bahnübergänge (Andreaskreuz)
     for (const r0 of N.rails || []) { const [x, y] = P2(r0.lat, r0.lon); if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue; const col = r0.kind === 'gesichert' ? '#9aa4b2' : '#ff3b30';
       g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.fillStyle = '#fff'; g.strokeStyle = col; g.lineWidth = 2; [[-13, -3, 26, 6], [-3, -13, 6, 26]].forEach((b) => { g.fillRect(b[0], b[1], b[2], b[3]); g.strokeRect(b[0], b[1], b[2], b[3]); }); g.restore(); }
+    if (X().cam === 'an') for (const c0 of N.cams || []) { const [x, y] = P2(c0.lat, c0.lon); if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue; g.fillStyle = '#111'; g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.beginPath(); if (g.roundRect) g.roundRect(x - 12, y - 9, 24, 18, 4); else g.rect(x - 12, y - 9, 24, 18); g.fill(); g.stroke(); g.fillStyle = '#ffd23f'; g.beginPath(); g.arc(x, y, 4.5, 0, 7); g.fill(); }
     // Genauigkeit
     const acc = A.R.acc || 0; if (acc > 6) { g.fillStyle = 'rgba(47,139,255,.16)'; g.strokeStyle = 'rgba(47,139,255,.45)'; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, Math.min(Math.max(W, H), acc * sc), 0, 7); g.fill(); g.stroke(); }
     // Fahrzeug oder Fußgänger
