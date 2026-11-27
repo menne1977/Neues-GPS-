@@ -29,6 +29,8 @@
       return [st, pr.city || pr.town || pr.village || ''].filter(Boolean).join(', ');
     } catch (e) { return ''; }
   }
+  // aktuelle Position für Neuberechnungen (GPS, sonst letzter bekannter Punkt)
+  const fromHere = (hd) => { const p = here(); return p ? { lat: p.lat, lon: p.lon, heading: hd === false ? null : A.heading() } : null; };
   async function saveHere(kind, label) {
     if (kind === 'park' && N.route && N.ropts && N.ropts.veh === 'fuss') { const m = 'Du gehst gerade zu Fuß. Das Auto bleibt gemerkt. Mit 🚗 geht es zurück.'; A.toast(m, 4500); return m; }
     const pos = here(); if (!pos) { A.toast('Noch kein Standort.', 3000); return 'Noch kein Standort.'; }
@@ -223,7 +225,7 @@
     $('nsMenu').addEventListener('click', onMenu);
     $('nsGo').onclick = () => search($('nsQ').value);
     $('nsQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') search($('nsQ').value); });
-    window.addEventListener('popstate', () => { if (N.open) { N.open = false; $('navscreen').hidden = true; layout(); } });
+    window.addEventListener('popstate', () => { if (N.open) { N.open = false; N.srch = false; $('navscreen').hidden = true; layout(); } });
     $('nsRes').addEventListener('click', (e) => {
       const s = e.target.closest('[data-save]'); const h = e.target.closest('[data-i]');
       if (s) { const r = N.results[+s.dataset.ri]; if (r) { setPlace(s.dataset.save, r); A.toast({ home: 'Als Zuhause gespeichert.', work: 'Als Arbeit gespeichert.', fav: 'Als Favorit gespeichert.' }[s.dataset.save], 3000); } return; }
@@ -302,14 +304,14 @@
   }
 
   function layout() {
-    const on = !!N.route && !N.srch, pv = !!N.prev && !N.route;
+    const pv = !!N.prev, on = !!N.route && !N.srch && !pv;
     $('nsPrev').hidden = !pv; document.getElementById('navscreen').classList.toggle('pv', pv);
     $('nsLive').hidden = !on; $('nsSearch').hidden = on || pv; $('nsMapW').hidden = !on; $('nsBot').hidden = !on; $('nsTop').hidden = !on;
     dock();
   }
   function gpsInfo() { const el = $('nsGps'); if (!el) return; const a = A.R.acc; el.textContent = A.R.lat == null ? 'GPS sucht …' : 'GPS ±' + Math.round(a || 0) + ' m'; el.className = A.R.lat == null || a > 30 ? 'bad' : a > 12 ? 'mid' : 'good'; }
   function show() { gpsInfo(); if (N.route) startLoop(); if (!N.open) { try { history.pushState({ navi: 1 }, ''); } catch (e) { /* egal */ } } N.open = true; $('navscreen').hidden = false; renderPlaces(); renderOpts(); layout(); if (N.route) draw(); else setTimeout(() => $('nsQ').focus(), 50); }
-  function hide() { if (N.open && history.state && history.state.navi) { history.back(); return; } N.open = false; $('navscreen').hidden = true; layout(); }
+  function hide() { N.srch = false; if (N.open && history.state && history.state.navi) { history.back(); return; } N.open = false; $('navscreen').hidden = true; layout(); }
 
   // ---------- Suche und Start ----------
   async function search(q) {
@@ -468,7 +470,8 @@
     N.busy = true; A.toast('Umfahrung wird gesucht …', 8000);
     try {
       const o = Object.assign({}, N.ropts || opts()); o.polys = (o.polys || []).concat([ring(a.j.la, a.j.lo, 1300)]);
-      const res = await Nav.plan({ lat: A.R.lat, lon: A.R.lon, heading: A.heading() }, N.dest, o, A.fetch);
+      const fh = fromHere(); if (!fh) throw new Error('Noch kein Standort.');
+      const res = await Nav.plan(fh, N.dest, o, A.fetch);
       if (Nav.proj(res.rt, a.j.la, a.j.lo).d < 500) throw new Error('Keine sinnvolle Umfahrung gefunden. Ich bleibe auf der Route.');
       const before = N.st ? N.st.remainT : null;
       N.route = res.rt; N.ropts = o; N.guide = new Nav.Guide(res.rt); N.st = null; N.lastRe = Date.now(); afterRoute(true);
@@ -507,7 +510,7 @@
 
   function stop(say) {
     N.srch = false; closeMenu();
-    if (N.prev) return prevCancel();
+    if (N.prev) { prevCancel(); if (!N.route) return 'Vorschau abgebrochen.'; }
     N.jamAsk = null; hideAsk();
     const was = !!N.route; N.offRoads = null; N.pan = { x: 0, y: 0 }; N.route = null; N.guide = null; N.st = null; N.dest = null;
     layout(); A.onRoute && A.onRoute(false);
@@ -520,20 +523,22 @@
   async function walkOn() {
     if (!N.dest) { setOpt({ veh: 'fuss' }); const m = 'Zu Fuß eingestellt. Wähle ein Ziel.'; A.toast(m, 3000); return m; }
     if (!(N.ropts && N.ropts.veh === 'fuss')) { const pos = here(); if (pos) { const nm = await nameHere(pos); setPlace('park', { name: 'Auto ' + hhmm() + (nm ? ', ' + nm : ''), lat: pos.lat, lon: pos.lon, t: Date.now() }); A.toast('Auto hier gemerkt. Zurück per 🚗.', 4000); } }
-    N.ropts = Object.assign({}, N.ropts || opts(), { veh: 'fuss' }); N.lastRe = 0; N.busy = false;
+    if (N.busy) return 'Ich rechne schon.';
+    const fh = fromHere(false); if (!fh) { A.toast('Noch kein Standort.', 3000); return 'Noch kein Standort.'; }
+    N.ropts = Object.assign({}, N.ropts || opts(), { veh: 'fuss' }); N.busy = true;
     A.toast('Fußweg wird berechnet …', 5000);
     try {
-      const res = await Nav.plan({ lat: A.R.lat, lon: A.R.lon, heading: null }, N.dest, N.ropts, A.fetch);
-      N.route = res.rt; N.guide = new Nav.Guide(res.rt); N.st = null; N.zoomAuto = true;
+      const res = await Nav.plan(fh, N.dest, N.ropts, A.fetch);
+      N.busy = false; if (!N.dest) return 'Navigation beendet.';
+      N.route = res.rt; N.guide = new Nav.Guide(res.rt); N.st = null; N.zoomAuto = true; N.lastRe = Date.now(); afterRoute(false);
       const m = 'Zu Fuß weiter, noch ' + meters(res.rt.len) + '.'; speak(m); A.toast(m, 4000); tick(); return m;
-    } catch (e) { const m = (e && e.message) || String(e); A.toast(m, 5000); return m; }
+    } catch (e) { N.busy = false; const m = (e && e.message) || String(e); A.toast(m, 5000); return m; }
   }
 
   // Zurück zum Auto: jederzeit, auch mitten in einer anderen Route
   async function backToCar() {
     const p = P().park; if (!p) { const m = 'Kein Auto gemerkt. Sage „Hier geparkt“ oder tippe auf 🅿.'; A.toast(m, 4500); return m; }
     if (N.busy) return 'Ich rechne schon.';
-    N.route = null; N.guide = null; N.st = null; layout();
     return start(p, { veh: 'fuss' });
   }
   // Andere Route zum selben Ziel (Alternative)
@@ -542,7 +547,8 @@
     if (N.busy) return 'Ich rechne schon.'; N.busy = true; A.toast('Alternative wird gesucht …', 6000);
     try {
       const k = (N.altK || 0) + 1, o = Object.assign({}, N.ropts || opts(), { pick: k });
-      const res = await Nav.plan({ lat: A.R.lat, lon: A.R.lon, heading: A.heading() }, N.dest, o, A.fetch);
+      const fh = fromHere(); if (!fh) throw new Error('Noch kein Standort.');
+      const res = await Nav.plan(fh, N.dest, o, A.fetch);
       if (!(res.info && res.info.pool > 1)) { N.busy = false; const m = 'Es gibt keine andere sinnvolle Route.'; A.toast(m, 3500); speak(m); return m; }
       N.altK = k; N.route = res.rt; N.guide = new Nav.Guide(res.rt); N.st = null; N.lastRe = Date.now(); afterRoute(true);
       const m = 'Route ' + ((res.info.pick || 0) + 1) + ' von ' + res.info.pool + ': ' + meters(res.rt.len) + ', etwa ' + Nav.fmtTime(res.rt.dur).replace(' min', ' Minuten').replace(' h', ' Stunden') + '.';
@@ -552,17 +558,18 @@
   // Ankunftszeit und Standort teilen
   async function shareEta() {
     if (!N.st || !N.dest) { const m = 'Keine Navigation aktiv.'; A.toast(m, 3000); return m; }
-    const text = 'Ich bin unterwegs nach ' + String(N.dest.name || 'Ziel').split(',')[0] + ', Ankunft etwa ' + eta(N.st.remainT) + ' Uhr (noch ' + Nav.fmtDist(N.st.remain) + '). Standort: https://maps.google.com/?q=' + A.R.lat.toFixed(5) + ',' + A.R.lon.toFixed(5);
+    const text = 'Ich bin unterwegs nach ' + String(N.dest.name || 'Ziel').split(',')[0] + ', Ankunft etwa ' + eta(N.st.remainT) + ' Uhr (noch ' + Nav.fmtDist(N.st.remain) + ').' + (here() ? ' Standort: https://maps.google.com/?q=' + here().lat.toFixed(5) + ',' + here().lon.toFixed(5) : '');
     try { if (navigator.share) { await navigator.share({ text }); return 'Geteilt.'; } } catch (e) { return 'Abgebrochen.'; }
     try { await navigator.clipboard.writeText(text); A.toast('Text kopiert. Jetzt in einer Nachricht einfügen.', 5000); return 'Text kopiert.'; } catch (e) { A.toast(text, 9000); return text; }
   }
 
   async function reroute() {
-    if (N.busy || !N.dest || Date.now() - N.lastRe < 12000) return;
+    if (N.busy || !N.dest || !here() || Date.now() - N.lastRe < 12000) return;
     N.busy = true; N.lastRe = Date.now();
     try {
-      const res = await Nav.plan({ lat: A.R.lat, lon: A.R.lon, heading: A.heading() }, N.dest, N.ropts || opts(), A.fetch);
-      N.route = res.rt; N.guide = new Nav.Guide(res.rt); afterRoute(true); speak('Route neu berechnet.');
+      const res = await Nav.plan(fromHere(), N.dest, N.ropts || opts(), A.fetch);
+      if (!N.route) { N.busy = false; return; }
+      N.route = res.rt; N.guide = new Nav.Guide(res.rt); N.st = null; afterRoute(true); speak('Route neu berechnet.');
     } catch (e) { A.toast('Neu berechnen nicht möglich: ' + ((e && e.message) || e), 4000); }
     N.busy = false;
   }

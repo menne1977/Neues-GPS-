@@ -432,7 +432,8 @@
       while (ni < this.rt.steps.length - 1 && this.rt.steps[ni].kind === 'depart') ni++;
       const step = this.rt.steps[ni], dNext = Math.max(0, step.at - along);
       const rate = this.rt.dur && this.rt.len ? this.rt.dur / this.rt.len : 0.07;
-      this.arrived = remain < 25;
+      const end = this.rt.shape[n], dEnd = hav(lat, lon, end.lat, end.lon);
+      this.arrived = remain < 25 && (best.d <= limit || dEnd < Math.max(40, (acc || 10) * 1.5));
       const say = [];
       if (!this.arrived && this.off === 0) {
         const key = (z) => ni + ':' + z;
