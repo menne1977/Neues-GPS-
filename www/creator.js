@@ -158,8 +158,8 @@
     const row = (...f) => (h += '<div class="pr">' + f.join('') + '</div>');
     const textStyle = () => row(fld('size', 'Größe', 'num', e, { step: 0.5 }), fld('color', 'Farbe', 'color', e), fld('font', 'Schrift', 'select', e, Object.keys(D.FONTS).map((k) => [k, k])), fld('weight', 'Stärke', 'select', e, [[400, 'normal'], [600, 'halbfett'], [800, 'fett']]), fld('align', 'Ausrichtung', 'select', e, [['l', 'links'], ['c', 'Mitte'], ['r', 'rechts']]));
     switch (e.t) {
-      case 'text': row(fld('text', 'Text', 'text', e)); textStyle(); break;
-      case 'value': row(fld('src', 'Wert', 'select', e, src), fld('dec', 'Nachkomma', 'num', e), fld('pad', 'Ziffern', 'num', e), fld('unit', 'Einheit', 'text', e), fld('stc', 'Farbe nach Limit', 'check', e)); textStyle(); break;
+      case 'text': row(fld('text', 'Text', 'text', e), fld('lab', 'Beschriftet Wert', 'select', e, [['', '– (fester Text)']].concat(st.d.els.filter((x) => x.t === 'value' && x.id !== e.id).map((x) => [x.id, 'Wert ' + x.id + ' (' + x.src + ')'])))); textStyle(); break;
+      case 'value': row(`<button data-act="cyc">⇄ Wechsel-Werte (${(e.cyc || []).length || 1})</button>`); if (st.cyc === e.id) h += '<div class="pr cr-cyc">' + D.SRC.map(([v, t]) => `<label><input type="checkbox" data-cy="${v}" ${(e.cyc || [{ s: e.src }]).some((c) => c.s === v) ? 'checked' : ''}> ${t}</label>`).join('') + '</div>'; row(fld('src', 'Wert', 'select', e, src), fld('dec', 'Nachkomma', 'num', e), fld('pad', 'Ziffern', 'num', e), fld('unit', 'Einheit', 'text', e), fld('stc', 'Farbe nach Limit', 'check', e)); textStyle(); break;
       case 'road': textStyle(); break;
       case 'rect': row(fld('color', 'Farbe', 'color', e), fld('radius', 'Rundung %', 'num', e), fld('border', 'Rand', 'num', e, { step: 0.1 }), fld('borderColor', 'Randfarbe', 'color', e)); break;
       case 'image': row(`<button data-act="img">Bild wählen</button>`, fld('fit', 'Anpassen', 'select', e, [['contain', 'einpassen'], ['cover', 'füllen'], ['fill', 'strecken']])); break;
@@ -173,7 +173,15 @@
     }
     p.innerHTML = h;
     p.onchange = (ev) => {
-      const t = ev.target, k = t.dataset.k; if (!k) return;
+      const t = ev.target;
+      if (t.dataset.cy) {
+        let c = (e.cyc && e.cyc.length ? e.cyc : [{ s: e.src }]).slice();
+        if (t.checked) { if (!c.some((x) => x.s === t.dataset.cy)) c.push({ s: t.dataset.cy }); } else c = c.filter((x) => x.s !== t.dataset.cy);
+        if (c.length < 2) delete e.cyc; else { e.cyc = c; e.src = c[0].s; }
+        if (c.length === 1) e.src = c[0].s;
+        redraw(); return props();
+      }
+      const k = t.dataset.k; if (!k) return;
       e[k] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? +t.value : (['weight'].includes(k) ? +t.value : t.value);
       redraw();
       if (['src', 'show', 'dir'].includes(k)) props();
@@ -181,6 +189,7 @@
     p.onclick = async (ev) => {
       const a = ev.target.dataset.act; if (!a) return;
       const i = st.d.els.indexOf(e);
+      if (a === 'cyc') { st.cyc = st.cyc === e.id ? null : e.id; return props(); }
       if (a === 'del') { st.d.els.splice(i, 1); st.sel = null; }
       if (a === 'dup') { const c = Object.assign({}, JSON.parse(JSON.stringify(e)), { id: 'e' + (st.nid++), x: e.x + 3, y: e.y + 3 }); st.d.els.push(c); st.sel = c.id; }
       if (a === 'front') { st.d.els.push(st.d.els.splice(i, 1)[0]); }

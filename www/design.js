@@ -74,6 +74,7 @@
     if (typeof e.bg === 'object' && e.bg) e.bg = e.bg.color || '#1c2840';
     if (Array.isArray(e.grad)) e.grad = e.grad.join(','); if (Array.isArray(e.rgrad)) e.rgrad = e.rgrad.join(','); if (Array.isArray(e.bgrad)) e.bgrad = e.bgrad.join(','); if (Array.isArray(e.tgrad)) e.tgrad = e.tgrad.join(',');
     if (e.t === 'needle' && e.width > 6) e.width = e.width / 3;
+    if (Array.isArray(e.cyc)) e.cyc = e.cyc.map((c) => (typeof c === 'string' ? { s: normSrc(c) } : Object.assign({}, c, { s: normSrc(c.s || c.src) }))).filter((c) => SRCSET.has(c.s));
     return e;
   }
   function validate(d, warn) {
@@ -236,12 +237,35 @@
         default: break;
       }
       canvas.appendChild(n);
-      nodes.push({ e, n, inner, last: '' });
+      nodes.push({ e, n, inner, last: '', base: e });
     });
+    // Antippen wechselt die Funktion: value-Element mit cyc:[{s,l,u,d}], Beschriftung = text-Element mit lab:<id des Werts>
+    const CUNIT = { alt: ' m', altnn: ' m', altnap: ' m', altell: ' m', day: ' km', trip: ' km', total: ' km', grade: ' %', temp: '°', feels: '°', hum: ' %', rain: ' mm', gps: ' m', g: ' g', acc: ' m/s²' };
+    const CDEC = { day: 1, trip: 1, total: 0, acc: 1, g: 2 };
+    const lname = (k) => (SRC.find((x) => x[0] === k) || [0, k])[1];
+    nodes.forEach((o) => {
+      const b = o.base; if (b.t !== 'value' || !Array.isArray(b.cyc) || b.cyc.length < 2 || opts.edit) return;
+      const key = 'dzc:' + d.name + ':' + b.id; let i = 0;
+      try { i = (parseInt(localStorage.getItem(key), 10) || 0) % b.cyc.length; } catch (_) { /* egal */ }
+      const apply = () => {
+        const c = b.cyc[i];
+        const same = c.s === b.src;
+        o.e = Object.assign({}, b, { src: c.s, unit: c.u != null ? c.u : (same ? b.unit : (CUNIT[c.s] || '')), dec: c.d != null ? c.d : (same ? b.dec : (CDEC[c.s] || 0)) });
+        const sm = o.n.querySelector('small'); if (sm) sm.textContent = o.e.unit || '';
+        o.n.style.fontSize = 'calc(var(--u)*' + (c.z || ({ date: 0.5, wx: 0.6, time: 0.8, sat: 0.85, altell: 0.9, clock: 0.95 }[c.s] || 1) * (b.size || 6)) + ')';
+        o.last = '';
+        nodes.forEach((q) => { if (q.base.lab === b.id) q.n.textContent = c.l || lname(c.s); });
+        try { localStorage.setItem(key, String(i)); } catch (_) { /* egal */ }
+      };
+      o.n.style.cursor = 'pointer'; o.n.style.touchAction = 'manipulation';
+      o.n.addEventListener('click', () => { i = (i + 1) % b.cyc.length; apply(); if (o.api) update(o.api); });
+      apply();
+    });
+    if (!opts.edit) nodes.forEach((o) => { if (o.base.lab) o.n.style.pointerEvents = 'none'; });
 
     function update(api) {
       for (const o of nodes) {
-        const e = o.e, n = o.n;
+        o.api = api; const e = o.e, n = o.n;
         if (!opts.edit && e.show && e.show !== 'always') {
           const st = api.state, hasL = api.limit != null;
           const vis = e.show === 'over' ? st === 'over' : e.show === 'near' ? st === 'near' : e.show === 'ok' ? st === 'ok' : e.show === 'notover' ? st !== 'over' : e.show === 'hasLimit' ? hasL : e.show === 'noLimit' ? !hasL : true;

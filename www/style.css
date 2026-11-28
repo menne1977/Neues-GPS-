@@ -372,3 +372,9 @@ body.land #nvWarn{left:31%}
 .mnTile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:18px 6px 12px;min-height:130px;border-radius:22px;border:0;background:#313744;color:#fff} .mnTile i{font-style:normal;font-size:44px;line-height:1} .mnTile b{font-size:17px;font-weight:700;text-align:center}
 body.land .mnSheet{max-width:640px;margin:0 auto} body.land .mnTiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 #nsZoom #nsRot{font-size:26px;background:#2f8bff;border-color:#fff}
+
+.tile .l .cy{font-style:normal;opacity:.55;margin-left:.3em}
+.gm{padding:6px 0 10px 4px;border-top:1px dashed var(--line)}
+.gml{display:inline-flex;align-items:center;gap:6px;margin:4px 12px 4px 0;font-size:14px}
+.cr-cyc{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 0}
+.cr-cyc label{display:inline-flex;align-items:center;gap:5px;font-size:13px}

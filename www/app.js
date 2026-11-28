@@ -13,6 +13,11 @@
     ['sat', 'Satelliten'], ['wx', 'Wetter'], ['wind', 'Böen'], ['grade', 'Steigung'], ['free', 'Spielraum'], ['tank', 'Nächste Tankstelle'], ['stau', 'Autobahn-Meldungen']
   ];
   const TNAME = Object.fromEntries(TILES);
+  let grpOpen = null;
+  // Kacheln mit mehreren Werten: Antippen schaltet der Reihe nach weiter
+  const DEFGRP = { day: ['day', 'trip', 'total'], max: ['max', 'avg', 'time'], alt: ['alt', 'grade'], wx: ['wx', 'wind'], gps: ['gps', 'sat'], acc: ['acc', 'g'] };
+  const grpOf = (id) => (S.tcyc && S.tcyc[id] && S.tcyc[id].length ? S.tcyc[id] : DEFGRP[id] || [id]);
+  const shownId = (id) => { const g = grpOf(id); return g[((S.tix && S.tix[id]) || 0) % g.length]; };
   const DEFTILES = ['alt', 'dir', 'acc', 'max', 'day', 'trip', 'total', 'clock', 'tank', 'stau'];
 
   // ---------- Einstellungen ----------
@@ -21,7 +26,7 @@
     unit: 'kmh', decimals: false, tol: 3, beep: true, warnSpeak: false, announce: false, preview: true,
     replies: true, vol: 80, wake: false, wakeWord: 'tacho', awake: true, online: true, wxOn: true, satOn: true, bt: false,
     ver: 2, navi: 'intern', navVoice: true, splitApp: { label: '', pkg: '' }, appCtl: false, fuelKm: 10, dLand: '', dPort: '', dSplit: '', scr: {},
-    veh: 'auto', altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(),
+    veh: 'auto', tcyc: {}, tix: {}, altRef: 'nn', napOff: 0, tiles: DEFTILES.slice(),
     day: { d: '', dist: 0, mt: 0, max: 0, altMin: null, altMax: null }, trip: { dist: 0, mt: 0, max: 0 }, total: 0, country: 'DE', countryT: 0, lp: null
   };
   let S = load();
@@ -29,6 +34,11 @@
     S.ver = 2;
     ['total', 'tank', 'stau'].forEach((id) => { if (!S.tiles.includes(id)) S.tiles.push(id); });
   }
+  if (S.ver < 3) { // Zusammengehörige Werte teilen sich eine Kachel (Antippen wechselt)
+    S.ver = 3; S.tcyc = S.tcyc || {}; S.tix = S.tix || {};
+    for (const g of Object.values(DEFGRP)) { let first = true; S.tiles = S.tiles.filter((id) => { if (!g.includes(id)) return true; if (first) { first = false; return true; } return false; }); }
+  }
+  if (!S.tcyc) S.tcyc = {}; if (!S.tix) S.tix = {};
   let cur = null; // aktives eigenes Design
   function load() {
     try {
@@ -410,8 +420,8 @@
     if (!S.tiles.length) { box.innerHTML = '<div id="empty">Nur Tempo. Sage „Alle Werte“ oder „Zeige Höhe“, oder öffne ⚙.</div>'; return; }
     let h = '';
     for (const id of S.tiles) {
-      const t = tileData(id);
-      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}${id === 'tank' || id === 'stau' ? ' tap' : ''}" data-id="${id}"><div class="l">${TNAME[id]}</div><div class="v">${t.arrow != null || id === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
+      const sid = shownId(id), multi = grpOf(id).length > 1, t = tileData(sid);
+      h += `<div class="tile${t.dim ? ' dim' : ''}${t.arrow != null ? ' rose' : ''}${id === 'tank' || id === 'stau' || multi ? ' tap' : ''}" data-id="${id}"><div class="l">${TNAME[sid]}${multi ? ' <i class="cy">⇄</i>' : ''}</div><div class="v">${t.arrow != null || sid === 'dir' ? ARROW(t.arrow) : ''}${t.v}${t.u ? `<small>${t.u}</small>` : ''}</div><div class="s">${t.s || '&nbsp;'}</div></div>`;
     }
     if (box._h !== h) { box.innerHTML = h; box._h = h; }
   }
@@ -484,13 +494,13 @@
   const mirrorDesign = (d) => (DFiles ? DFiles.save({ name: d.name, text: JSON.stringify(d) }).catch(() => null) : Promise.resolve(null));
   { const put0 = Design.Store.put; Design.Store.put = async (d) => { const r = await put0(d); mirrorDesign(d); return r; }; }
   // Mitgelieferte Navi-Designs (www/vorlagen) einmalig in die Design-Liste übernehmen
-  const NAVI_TPL = ['Navi-Quer', 'Navi-Hochformat', 'Navi-Split-Hoch', 'Navi-Split-Quer'];
+  const NAVI_TPL = ['Navi-Quer', 'Navi-Hochformat', 'Navi-Split-Hoch', 'Navi-Split-Quer', 'Tacho-Quer-Kacheln', 'Tacho-Navi-Links', 'Tacho-Navi-Band', 'Tacho-Navi-Hoch'];
   async function installNaviTpl(force) {
-    if (!force && S.naviTpl === 1) return 0; let n = 0;
+    if (!force && S.naviTpl === 2) return 0; let n = 0;
     for (const f of NAVI_TPL) { try { const r = await fetch('vorlagen/' + f + '.tacho.json'); if (!r.ok) continue; const d = Design.parse(await r.text()); delete d.warn; await Design.Store.put(d); n++; } catch (_) { /* weiter */ } }
-    S.naviTpl = 1; save(true); return n;
+    S.naviTpl = 2; save(true); return n;
   }
-  setTimeout(() => installNaviTpl(false).then((n) => { if (n) toast('Neue Navi-Tacho-Designs sind da: Einstellungen → Tacho-Designs → „Navi-Designs verwenden“.', 7000); }).catch(() => {}), 2500);
+  setTimeout(() => installNaviTpl(false).then((n) => { if (n) toast('Neue Tacho-Designs sind da (Antippen wechselt die Werte): Einstellungen → Tacho-Designs.', 7000); }).catch(() => {}), 2500);
   document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.dz-navi') && window.NavUI) NavUI.show(); });
   async function exportAllDesigns() {
     const l = await Design.Store.list();
@@ -702,7 +712,7 @@
   }
   $('#bPlaces').onclick = () => Places.show('fuel', placesApi);
   $('#bSplit').onclick = () => run({ act: 'split', name: '' });
-  $('#tiles').addEventListener('click', (e) => { const t = e.target.closest('.tile'); if (!t) return; if (t.dataset.id === 'tank') Places.show('fuel', placesApi); if (t.dataset.id === 'stau') Places.show('jam', placesApi); });
+  $('#tiles').addEventListener('click', (e) => { const t = e.target.closest('.tile'); if (!t) return; { const g = grpOf(t.dataset.id); if (g.length > 1) { S.tix[t.dataset.id] = (((S.tix[t.dataset.id]) || 0) + 1) % g.length; save(true); renderTiles(); } } if (t.dataset.id === 'tank') Places.show('fuel', placesApi); if (t.dataset.id === 'stau') Places.show('jam', placesApi); });
 
   // ---------- Sprachsteuerung ----------
   let wasListening = false;
@@ -881,7 +891,7 @@
       ${sel('colsL', 'Spalten quer', [1, 2, 3, 4, 5].map((n) => [n, n]))}
       ${chk('awake', 'Bildschirm anlassen')}`);
     h += det('tilesec', 'Werte (Kacheln)', () => `<div class="info">Häkchen = sichtbar. Pfeile verschieben. Oder per Sprache: „Zeige Höhe“, „Verstecke Trip“.</div>` +
-      order.map((v) => `<div class="tl"><label><input type="checkbox" data-tile="${v.id}" ${v.on ? 'checked' : ''}> ${v.name}</label>${v.on ? `<button class="mv" data-mv="${v.id}" data-d="-1">↑</button><button class="mv" data-mv="${v.id}" data-d="1">↓</button>` : ''}</div>`).join(''));
+      order.map((v) => `<div class="tl"><label><input type="checkbox" data-tile="${v.id}" ${v.on ? 'checked' : ''}> ${v.name}</label>${v.on && v.id !== 'tank' && v.id !== 'stau' ? `<button class="mv" data-grp="${v.id}" title="Mehrere Werte auf dieser Kachel">⇄ ${grpOf(v.id).length}</button>` : ''}${v.on ? `<button class="mv" data-mv="${v.id}" data-d="-1">↑</button><button class="mv" data-mv="${v.id}" data-d="1">↓</button>` : ''}</div>${grpOpen === v.id ? `<div class="gm"><div class="info">Diese Kachel zeigt der Reihe nach (Antippen wechselt):</div>${TILES.filter((q) => q[0] !== 'tank' && q[0] !== 'stau').map((q) => `<label class="gml"><input type="checkbox" data-gm="${v.id}|${q[0]}" ${grpOf(v.id).includes(q[0]) ? 'checked' : ''}> ${q[1]}</label>`).join('')}<button class="mv" data-grp0="${v.id}">Standard</button></div>` : ''}`).join(''));
     h += det('lim', 'Tempolimit', () => `
       ${sel('veh', 'Fahrzeug', Object.entries(L.VEHICLES).map(([k, v]) => [k, v.name]))}
       <div class="row"><label>Toleranz (km/h)<small>bis hierhin nur gelbe Warnung</small></label><input type="number" min="0" max="30" data-k="tol" value="${S.tol}" style="width:80px"></div>
@@ -949,6 +959,11 @@
       if (k === 'layout') applyOrient();
       if (k === 'unit') heroTarget = R.speed * fu();
       if (k === 'veh') { engine.cur = null; updateLimit(); }
+    } else if (t.dataset.gm) {
+      const [tid, mid] = t.dataset.gm.split('|'); let g = grpOf(tid).slice();
+      if (t.checked) { if (!g.includes(mid)) g.push(mid); } else g = g.filter((x) => x !== mid);
+      if (!g.length) g = [tid];
+      S.tcyc[tid] = g; S.tix[tid] = 0;
     } else if (t.dataset.tile) {
       const id = t.dataset.tile; if (t.checked) { if (!S.tiles.includes(id)) S.tiles.push(id); } else S.tiles = S.tiles.filter((x) => x !== id);
     } else if (t.id === 'totalIn') { S.total = Math.max(0, +t.value || 0); toast('Gesamtkilometer: ' + Math.round(S.total)); }
@@ -958,7 +973,9 @@
     save(true); applyLook(); render(); buildPanel();
   });
   $('#panel').addEventListener('click', (e) => {
-    const t = e.target.closest('[data-do],[data-mv],[data-accent],[data-pkg]'); if (!t) return;
+    const t = e.target.closest('[data-do],[data-mv],[data-accent],[data-pkg],[data-grp],[data-grp0]'); if (!t) return;
+    if (t.dataset.grp) { grpOpen = grpOpen === t.dataset.grp ? null : t.dataset.grp; return buildPanel('tilesec'); }
+    if (t.dataset.grp0) { delete S.tcyc[t.dataset.grp0]; S.tix[t.dataset.grp0] = 0; save(true); renderTiles(); return buildPanel('tilesec'); }
     if (t.dataset.pkg) { S.splitApp = { label: t.dataset.l, pkg: t.dataset.pkg }; save(true); toast('Split-App: ' + t.dataset.l); return buildPanel('apps'); }
     if (t.dataset.accent) { S.accent = t.dataset.accent; save(true); applyLook(); render(); return buildPanel(); }
     if (t.dataset.mv) { const i = S.tiles.indexOf(t.dataset.mv), j = clamp(i + +t.dataset.d, 0, S.tiles.length - 1); S.tiles.splice(j, 0, S.tiles.splice(i, 1)[0]); save(true); render(); return buildPanel(); }
