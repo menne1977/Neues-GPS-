@@ -389,3 +389,9 @@ body.land .mnSheet{max-width:640px;margin:0 auto} body.land .mnTiles{grid-templa
 .dz-navi-quer b{font-size:min(1em,17cqw);white-space:nowrap}
 .dz-navi-hoch i{height:auto;flex:1 1 0;min-height:0;max-height:58%}
 .dz-navi-hoch span{flex:none}
+
+/* Navi-Anzeige: nächste Aktion nach dem Abbiegen */
+.dz-navi .nvthen{display:flex;align-items:center;gap:.3em;font-style:normal;font-size:.42em;font-weight:700;color:#cfe3ff;white-space:nowrap;margin-top:.25em;opacity:.95}
+.dz-navi .nvthen u{display:inline-flex;text-decoration:none;height:1.7em;width:1.7em;flex:none} .dz-navi .nvthen u svg{width:100%;height:100%}
+.dz-navi-hoch .nvthen{justify-content:center;font-size:min(.42em,7.5cqw)} .dz-navi-quer .nvthen{font-size:min(.42em,5cqw)}
+.dz-navi-pfeil{flex-direction:column} .dz-navi-pfeil .nvthen{font-size:.3em}

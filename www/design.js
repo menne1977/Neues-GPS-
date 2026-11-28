@@ -286,11 +286,14 @@
             n.style.visibility = '';
             const lk = nv.look || {}, colr = e.color || ({ blau: '#7cc0ff', weiss: '#ffffff', gelb: '#ffd400', gruen: '#3ef08a', orange: '#ff9f1a' })[lk.col] || '#7cc0ff', sty = e.style || lk.style || 'klassisch';
             const dist = nv.dNext >= 1000 ? (nv.dNext / 1000).toFixed(nv.dNext >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.round(nv.dNext / 10) * 10 + ' m';
-            const key = [nv.kind, nv.exit, nv.exitAng, dist, nv.street, colr, sty, e.lay, e.box].join('|');
+            const th = (nv.then && lk.then !== 'aus' && e.then !== false) ? nv.then : null, fmD = (d) => (d >= 1000 ? (d / 1000).toFixed(d >= 10000 ? 0 : 1).replace('.', ',') + ' km' : Math.max(10, Math.round(d / 10) * 10) + ' m');
+            const key = [nv.kind, nv.exit, nv.exitAng, dist, nv.street, colr, sty, e.lay, e.box, th ? th.kind + th.exit + fmD(th.d) : ''].join('|');
             if (o.last !== key) {
               o.last = key; const ic = api.navIcon ? api.navIcon(nv, { style: sty, col: colr, bg: '#0b1626' }) : '';
               n.querySelector('.dz-navi').className = 'dz-navi dz-navi-' + (e.lay || 'quer') + (e.box ? ' dz-navi-box' : '');
-              n.querySelector('.dz-navi').innerHTML = e.lay === 'pfeil' ? `<i>${ic}</i>` : `<i>${ic}</i><span><b>${dist}</b><small>${esc(nv.street || '')}</small></span>`;
+              const tic = th && api.navIcon ? api.navIcon(th, { style: sty, col: colr, bg: '#0b1626' }) : '';
+              const thenH = th ? `<em class="nvthen">danach <u>${tic}</u> in ${fmD(th.d)}</em>` : '';
+              n.querySelector('.dz-navi').innerHTML = e.lay === 'pfeil' ? `<i>${ic}</i>${thenH}` : `<i>${ic}</i><span><b>${dist}</b><small>${esc(nv.street || '')}</small>${thenH}</span>`;
             }
             break;
           }
