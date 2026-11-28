@@ -395,3 +395,13 @@ body.land .mnSheet{max-width:640px;margin:0 auto} body.land .mnTiles{grid-templa
 .dz-navi .nvthen u{display:inline-flex;text-decoration:none;height:1.7em;width:1.7em;flex:none} .dz-navi .nvthen u svg{width:100%;height:100%}
 .dz-navi-hoch .nvthen{justify-content:center;font-size:min(.42em,7.5cqw)} .dz-navi-quer .nvthen{font-size:min(.42em,5cqw)}
 .dz-navi-pfeil{flex-direction:column} .dz-navi-pfeil .nvthen{font-size:.3em}
+/* Alle Navi-Fenster: Entfernung groß, Straße und „danach“ passen sich der Breite an (nichts wird abgeschnitten) */
+.nvT{container-type:inline-size}
+.nvS{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;line-height:1.1;text-overflow:clip}
+.nvD{font-size:min(calc(30px*var(--nv-scale,1)),17cqw)}
+.nvN{font-size:min(calc(13px*var(--nv-scale,1)),6.4cqw);margin-top:.3em;padding-top:.3em;border-top:1px solid #ffffff44;overflow:hidden}
+body.land.nv-dock .nvD{font-size:min(calc(24px*var(--nv-scale,1)),17cqw)}
+#navscreen #nsTop .nvD{font-size:min(calc(46px*var(--nv-scale,1)),19cqw)}
+#navscreen #nsTop .nvS{font-size:min(calc(26px*var(--nv-scale,1)),9cqw)}
+#navscreen #nsTop .nvN{font-size:min(calc(17px*var(--nv-scale,1)),7cqw);margin-top:.3em;padding-top:.3em}
+.dz-navi .nvthen{border-top:1px solid #ffffff44;padding-top:.25em;align-self:stretch}
