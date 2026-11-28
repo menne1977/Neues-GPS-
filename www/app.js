@@ -496,9 +496,9 @@
   // Mitgelieferte Navi-Designs (www/vorlagen) einmalig in die Design-Liste übernehmen
   const NAVI_TPL = ['Navi-Quer', 'Navi-Hochformat', 'Navi-Split-Hoch', 'Navi-Split-Quer', 'Tacho-Quer-Kacheln', 'Tacho-Navi-Links', 'Tacho-Navi-Band', 'Tacho-Navi-Hoch'];
   async function installNaviTpl(force) {
-    if (!force && S.naviTpl === 2) return 0; let n = 0;
+    if (!force && S.naviTpl === 3) return 0; let n = 0;
     for (const f of NAVI_TPL) { try { const r = await fetch('vorlagen/' + f + '.tacho.json'); if (!r.ok) continue; const d = Design.parse(await r.text()); delete d.warn; await Design.Store.put(d); n++; } catch (_) { /* weiter */ } }
-    S.naviTpl = 2; save(true); return n;
+    S.naviTpl = 3; save(true); return n;
   }
   setTimeout(() => installNaviTpl(false).then((n) => { if (n) toast('Neue Tacho-Designs sind da (Antippen wechselt die Werte): Einstellungen → Tacho-Designs.', 7000); }).catch(() => {}), 2500);
   document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.dz-navi') && window.NavUI) NavUI.show(); });
