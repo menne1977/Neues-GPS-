@@ -75,6 +75,13 @@
     if (Array.isArray(e.grad)) e.grad = e.grad.join(','); if (Array.isArray(e.rgrad)) e.rgrad = e.rgrad.join(','); if (Array.isArray(e.bgrad)) e.bgrad = e.bgrad.join(','); if (Array.isArray(e.tgrad)) e.tgrad = e.tgrad.join(',');
     if (e.t === 'needle' && e.width > 6) e.width = e.width / 3;
     if (Array.isArray(e.cyc)) e.cyc = e.cyc.map((c) => (typeof c === 'string' ? { s: normSrc(c) } : Object.assign({}, c, { s: normSrc(c.s || c.src) }))).filter((c) => SRCSET.has(c.s));
+    // Keine runden Instrumente mehr: Bogen, Nadel und Skala werden als gerader Balken gezeichnet.
+    if (e.t === 'arc' || e.t === 'needle' || e.t === 'dial') {
+      e.limitMark = e.t === 'dial' ? e.lim !== false : !!e.lim;
+      e.t = 'bar'; e.dir = e.dir || 'r'; e.radius = e.radius ?? 50; e.segs = 0;
+      e.src = e.src || 'speed'; e.min = e.min ?? 0; e.max = e.max ?? 240;
+      e.color = e.color || '#3ddc97'; e.bg = e.bg || '#1c2840';
+    }
     return e;
   }
   function validate(d, warn) {
@@ -169,8 +176,10 @@
       n.style.cssText = `left:${e.x}%;top:${e.y}%;width:${e.w}%;height:${e.h}%;opacity:${e.op};transform:rotate(${e.rot || 0}deg)`;
       let inner = null;
       const fx = [];
-      if (e.glow) fx.push(`drop-shadow(0 0 calc(var(--u)*${+e.gs || 1.2}) ${csafe(e.glow)})`);
-      if (e.shadow) fx.push('drop-shadow(0 calc(var(--u)*.6) calc(var(--u)*1.1) rgba(0,0,0,.65))');
+      // Zahlen bekommen keinen Schimmer/Schatten mehr (klare, harte Ziffern).
+      const isNum = e.t === 'value';
+      if (e.glow && !isNum) fx.push(`drop-shadow(0 0 calc(var(--u)*${+e.gs || 1.2}) ${csafe(e.glow)})`);
+      if (e.shadow && !isNum) fx.push('drop-shadow(0 calc(var(--u)*.6) calc(var(--u)*1.1) rgba(0,0,0,.65))');
       if (fx.length) n.style.filter = fx.join(' ');
       const sizeCss = `font-size:calc(var(--u)*${e.size || 6});color:${e.color};font-family:${FONTS[e.font] || FONTS.sans};font-weight:${e.weight || 600};justify-content:${e.align === 'l' ? 'flex-start' : e.align === 'r' ? 'flex-end' : 'center'}`;
       switch (e.t) {
